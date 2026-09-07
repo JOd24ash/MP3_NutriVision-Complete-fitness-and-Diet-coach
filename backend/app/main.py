@@ -43,7 +43,17 @@ from .speech.nlp_parser import parse_transcript
 from .speech.transcriber import get_transcriber
 from .vision.detector import get_detector
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI(title="NutriVision API", version="0.1.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 API_PREFIX = "/api/v1"
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{API_PREFIX}/auth/login")
