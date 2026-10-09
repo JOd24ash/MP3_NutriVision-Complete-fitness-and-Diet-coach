@@ -37,8 +37,8 @@ export const TodaySummary = () => {
         className="glass-panel"
         style={{ 
           padding: '28px 32px', 
-          background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(15, 23, 42, 0.9) 60%, rgba(139, 92, 246, 0.1) 100%)',
-          border: '1px solid rgba(16, 185, 129, 0.25)',
+          background: 'linear-gradient(135deg, rgba(93,155,107,0.10) 0%, rgba(255,252,245,0.95) 50%, rgba(196,154,84,0.08) 100%)',
+          border: '1px solid rgba(93, 155, 107, 0.22)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -103,7 +103,7 @@ export const TodaySummary = () => {
             <div style={{ 
               height: '10px', 
               borderRadius: 'var(--radius-full)', 
-              background: 'rgba(255, 255, 255, 0.08)', 
+              background: 'rgba(139, 115, 85, 0.12)', 
               overflow: 'hidden' 
             }}>
               <div style={{ 
@@ -149,8 +149,8 @@ export const TodaySummary = () => {
               <div style={{ 
                 padding: '8px', 
                 borderRadius: '10px', 
-                background: 'rgba(16, 185, 129, 0.15)',
-                color: 'var(--emerald-400)'
+                background: 'rgba(93, 155, 107, 0.14)',
+                color: 'var(--sage-500)'
               }}>
                 <ShieldCheck size={22} />
               </div>
@@ -171,9 +171,9 @@ export const TodaySummary = () => {
             {/* Conditions */}
             <div style={{ 
               padding: '12px 16px', 
-              background: 'rgba(255, 255, 255, 0.03)', 
+              background: 'rgba(139, 115, 85, 0.06)', 
               borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--border-subtle)'
+              border: '1px solid var(--border-light)'
             }}>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '8px' }}>
                 MONITORED MEDICAL CONDITIONS
@@ -195,9 +195,9 @@ export const TodaySummary = () => {
             {/* Allergens */}
             <div style={{ 
               padding: '12px 16px', 
-              background: 'rgba(255, 255, 255, 0.03)', 
+              background: 'rgba(139, 115, 85, 0.06)', 
               borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--border-subtle)'
+              border: '1px solid var(--border-light)'
             }}>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '8px' }}>
                 STRICT ALLERGEN BLOCKLIST
@@ -222,9 +222,9 @@ export const TodaySummary = () => {
               gap: '8px', 
               padding: '8px 12px',
               borderRadius: 'var(--radius-sm)',
-              background: 'rgba(16, 185, 129, 0.06)',
+              background: 'rgba(93, 155, 107, 0.08)',
               fontSize: '0.82rem',
-              color: 'var(--emerald-400)'
+              color: 'var(--sage-600)'
             }}>
               <ShieldCheck size={16} />
               <span>Guardrails will automatically flag high GI carbs & allergen traces</span>
