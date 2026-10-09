@@ -112,7 +112,7 @@ export const HealthMetrics = () => {
               value={unit}
               readOnly
               className="text-input"
-              style={{ background: 'rgba(255,255,255,0.03)', color: 'var(--text-muted)' }}
+              style={{ background: '#f4f3ef', color: 'var(--text-secondary)' }}
             />
           </div>
 
@@ -157,7 +157,7 @@ export const HealthMetrics = () => {
         <div className="glass-panel" style={{ padding: '20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>BODY WEIGHT</span>
-            <div style={{ color: '#38bdf8', background: 'rgba(56, 189, 248, 0.12)', padding: '4px', borderRadius: '6px' }}>
+            <div style={{ color: '#0284c7', background: 'rgba(2, 132, 199, 0.12)', padding: '4px', borderRadius: '6px' }}>
               <Scale size={16} />
             </div>
           </div>
@@ -171,7 +171,7 @@ export const HealthMetrics = () => {
         <div className="glass-panel" style={{ padding: '20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>HYDRATION</span>
-            <div style={{ color: '#06b6d4', background: 'rgba(6, 182, 212, 0.12)', padding: '4px', borderRadius: '6px' }}>
+            <div style={{ color: '#0284c7', background: 'rgba(2, 132, 199, 0.12)', padding: '4px', borderRadius: '6px' }}>
               <Droplet size={16} />
             </div>
           </div>
@@ -196,9 +196,9 @@ export const HealthMetrics = () => {
                   justifyContent: 'space-between',
                   alignItems: 'center',
                   padding: '12px 16px',
-                  background: 'rgba(255, 255, 255, 0.03)',
+                  background: '#faf9f6',
                   borderRadius: 'var(--radius-sm)',
-                  border: '1px solid var(--border-subtle)'
+                  border: '1px solid var(--border-light)'
                 }}
               >
                 <div>

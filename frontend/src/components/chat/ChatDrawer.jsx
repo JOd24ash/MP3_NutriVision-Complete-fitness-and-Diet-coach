@@ -91,18 +91,19 @@ export const ChatDrawer = () => {
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
-          border: '1px solid rgba(139, 92, 246, 0.3)',
-          boxShadow: '0 20px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(139, 92, 246, 0.2)'
+          background: '#ffffff',
+          border: '1.5px solid var(--border-light)',
+          boxShadow: '0 20px 50px rgba(0, 0, 0, 0.22)'
         }}
       >
         {/* Header */}
         <div style={{
           padding: '16px 20px',
-          borderBottom: '1px solid var(--border-subtle)',
+          borderBottom: '1px solid var(--border-light)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          background: 'rgba(15, 23, 42, 0.8)'
+          background: '#faf9f6'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div style={{
@@ -180,12 +181,12 @@ export const ChatDrawer = () => {
 
               <div style={{
                 background: msg.role === 'user' 
-                  ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' 
-                  : 'rgba(255, 255, 255, 0.05)',
-                color: '#ffffff',
+                  ? 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)' 
+                  : '#faf9f6',
+                color: msg.role === 'user' ? '#ffffff' : 'var(--text-primary)',
                 padding: '14px 18px',
                 borderRadius: 'var(--radius-md)',
-                border: msg.role === 'user' ? 'none' : '1px solid var(--border-subtle)',
+                border: msg.role === 'user' ? 'none' : '1px solid var(--border-light)',
                 fontSize: '0.92rem',
                 lineHeight: 1.55,
                 whiteSpace: 'pre-wrap'
@@ -197,14 +198,15 @@ export const ChatDrawer = () => {
                   <div style={{
                     marginTop: '12px',
                     padding: '8px 12px',
-                    background: 'rgba(245, 158, 11, 0.15)',
+                    background: '#fef3c7',
                     borderRadius: '6px',
-                    border: '1px solid rgba(245, 158, 11, 0.3)',
+                    border: '1px solid #fde68a',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px',
                     fontSize: '0.8rem',
-                    color: 'var(--saffron-400)'
+                    color: '#92400e',
+                    fontWeight: 600
                   }}>
                     <ShieldAlert size={14} />
                     <span>Guardrail trigger: {msg.guardrail_flags.join(', ')}</span>
@@ -216,12 +218,12 @@ export const ChatDrawer = () => {
                   <div style={{
                     marginTop: '12px',
                     paddingTop: '10px',
-                    borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderTop: '1px solid var(--border-light)',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '4px'
                   }}>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--violet-400)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <div style={{ fontSize: '0.72rem', color: '#7c3aed', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <BookOpen size={11} />
                       <span>ICMR-NIN RETRIEVAL SOURCES:</span>
                     </div>
@@ -251,10 +253,11 @@ export const ChatDrawer = () => {
                 <Bot size={16} />
               </div>
               <div style={{
-                background: 'rgba(255, 255, 255, 0.05)',
+                background: '#faf9f6',
+                border: '1px solid var(--border-light)',
                 padding: '12px 18px',
                 borderRadius: 'var(--radius-md)',
-                color: 'var(--text-muted)',
+                color: 'var(--text-secondary)',
                 fontSize: '0.85rem'
               }}>
                 Retrieving ICMR nutritional guidelines & formulating response...
@@ -268,8 +271,8 @@ export const ChatDrawer = () => {
         {/* Quick Prompts */}
         <div style={{
           padding: '10px 16px',
-          borderTop: '1px solid var(--border-subtle)',
-          background: 'rgba(11, 15, 25, 0.5)',
+          borderTop: '1px solid var(--border-light)',
+          background: '#faf9f6',
           display: 'flex',
           gap: '8px',
           overflowX: 'auto',
@@ -290,8 +293,8 @@ export const ChatDrawer = () => {
         {/* Input Bar */}
         <div style={{
           padding: '14px 16px',
-          borderTop: '1px solid var(--border-subtle)',
-          background: 'rgba(15, 23, 42, 0.95)',
+          borderTop: '1px solid var(--border-light)',
+          background: '#ffffff',
           display: 'flex',
           gap: '10px'
         }}>

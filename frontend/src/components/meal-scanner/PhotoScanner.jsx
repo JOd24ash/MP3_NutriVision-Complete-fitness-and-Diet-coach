@@ -257,23 +257,23 @@ export const PhotoScanner = () => {
                   Sum of {activeMeal.items.length} segmented items
                 </span>
               </div>
-              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--emerald-400)' }}>
+              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--sage-500)' }}>
                 {activeMeal.total.calories} <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>kcal</span>
               </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
-              <div style={{ background: 'rgba(56, 189, 248, 0.1)', padding: '10px', borderRadius: '8px', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.75rem', color: '#38bdf8' }}>PROTEIN</div>
-                <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#38bdf8' }}>{activeMeal.total.protein_g}g</div>
+              <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', padding: '10px', borderRadius: '8px', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0369a1' }}>PROTEIN</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0284c7' }}>{activeMeal.total.protein_g}g</div>
               </div>
-              <div style={{ background: 'rgba(251, 191, 36, 0.1)', padding: '10px', borderRadius: '8px', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.75rem', color: '#fbbf24' }}>CARBS</div>
-                <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#fbbf24' }}>{activeMeal.total.carbs_g}g</div>
+              <div style={{ background: '#fffbeb', border: '1px solid #fde68a', padding: '10px', borderRadius: '8px', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#b45309' }}>CARBS</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#d97706' }}>{activeMeal.total.carbs_g}g</div>
               </div>
-              <div style={{ background: 'rgba(244, 63, 94, 0.1)', padding: '10px', borderRadius: '8px', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.75rem', color: '#f43f5e' }}>FAT</div>
-                <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#f43f5e' }}>{activeMeal.total.fat_g}g</div>
+              <div style={{ background: '#fff1f2', border: '1px solid #fecdd3', padding: '10px', borderRadius: '8px', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#be123c' }}>FAT</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#e11d48' }}>{activeMeal.total.fat_g}g</div>
               </div>
             </div>
 

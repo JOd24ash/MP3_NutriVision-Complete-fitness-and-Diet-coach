@@ -70,7 +70,10 @@ export const ProfileSettingsModal = () => {
           padding: '24px 28px',
           display: 'flex',
           flexDirection: 'column',
-          gap: '20px'
+          gap: '20px',
+          background: '#ffffff',
+          border: '1.5px solid var(--border-light)',
+          boxShadow: '0 20px 50px rgba(0, 0, 0, 0.22)'
         }}
       >
         {/* Header */}
@@ -148,8 +151,8 @@ export const ProfileSettingsModal = () => {
         {/* Medical Conditions */}
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-            <HeartPulse size={16} color="var(--saffron-400)" />
-            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--saffron-400)' }}>
+            <HeartPulse size={16} color="var(--amber-500)" />
+            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--amber-500)' }}>
               MEDICAL CONDITIONS (TRIGGERS HEALTH WARNINGS)
             </span>
           </div>
@@ -163,9 +166,9 @@ export const ProfileSettingsModal = () => {
                   className={`btn btn-sm ${active ? 'btn-primary' : 'btn-secondary'}`}
                   style={{
                     fontSize: '0.82rem',
-                    background: active ? 'rgba(245, 158, 11, 0.2)' : undefined,
-                    borderColor: active ? 'var(--saffron-500)' : undefined,
-                    color: active ? 'var(--saffron-400)' : undefined
+                    background: active ? '#fef3c7' : undefined,
+                    borderColor: active ? '#f59e0b' : undefined,
+                    color: active ? '#92400e' : undefined
                   }}
                 >
                   {active && <Check size={13} />}

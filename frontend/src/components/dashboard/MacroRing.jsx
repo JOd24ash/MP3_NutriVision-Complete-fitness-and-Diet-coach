@@ -20,7 +20,7 @@ export const MacroRing = ({
         <svg height={radius * 2} width={radius * 2} style={{ transform: 'rotate(-90deg)' }}>
           {/* Background circle */}
           <circle
-            stroke="rgba(255, 255, 255, 0.08)"
+            stroke="rgba(0, 0, 0, 0.08)"
             fill="transparent"
             strokeWidth={strokeWidth}
             r={normalizedRadius}

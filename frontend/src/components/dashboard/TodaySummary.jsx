@@ -37,8 +37,10 @@ export const TodaySummary = () => {
         className="glass-panel"
         style={{ 
           padding: '28px 32px', 
-          background: 'linear-gradient(135deg, rgba(93,155,107,0.10) 0%, rgba(248,248,246,0.97) 50%, rgba(139,120,200,0.06) 100%)',
-          border: '1px solid rgba(93, 155, 107, 0.22)',
+          background: '#ffffff',
+          border: '1.5px solid var(--border-light)',
+          borderRadius: 'var(--radius-lg)',
+          boxShadow: 'var(--shadow-card)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -47,14 +49,14 @@ export const TodaySummary = () => {
         }}
       >
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
             <span className="badge badge-success">ICMR-NIN Aligned</span>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>• Daily Diet Coach Active</span>
+            <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 600 }}>• Daily Diet Coach Active</span>
           </div>
-          <h1 style={{ fontSize: '1.85rem', marginBottom: '6px' }}>
-            Namaste, <span className="gradient-text">{user.name?.split(' ')[0] || 'Friend'}</span>!
+          <h1 style={{ fontSize: '1.9rem', marginBottom: '8px', color: 'var(--text-primary)' }}>
+            Namaste, <span style={{ color: 'var(--sage-500)' }}>{user.name?.split(' ')[0] || 'Friend'}</span>!
           </h1>
-          <p style={{ color: 'var(--text-secondary)', maxWidth: '560px', fontSize: '0.95rem' }}>
+          <p style={{ color: 'var(--text-secondary)', maxWidth: '580px', fontSize: '0.96rem', lineHeight: '1.6' }}>
             Ready to log your meal? NutriVision automatically segments multi-item Indian thalis, computes portions, and guards against medical conflicts.
           </p>
         </div>
@@ -171,11 +173,11 @@ export const TodaySummary = () => {
             {/* Conditions */}
             <div style={{ 
               padding: '12px 16px', 
-              background: 'rgba(139, 115, 85, 0.06)', 
+              background: '#faf9f6', 
               borderRadius: 'var(--radius-md)',
               border: '1px solid var(--border-light)'
             }}>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '8px' }}>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.04em', marginBottom: '8px' }}>
                 MONITORED MEDICAL CONDITIONS
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
@@ -195,11 +197,11 @@ export const TodaySummary = () => {
             {/* Allergens */}
             <div style={{ 
               padding: '12px 16px', 
-              background: 'rgba(139, 115, 85, 0.06)', 
+              background: '#faf9f6', 
               borderRadius: 'var(--radius-md)',
               border: '1px solid var(--border-light)'
             }}>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '8px' }}>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.04em', marginBottom: '8px' }}>
                 STRICT ALLERGEN BLOCKLIST
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
@@ -220,11 +222,13 @@ export const TodaySummary = () => {
               display: 'flex', 
               alignItems: 'center', 
               gap: '8px', 
-              padding: '8px 12px',
+              padding: '10px 14px',
               borderRadius: 'var(--radius-sm)',
-              background: 'rgba(93, 155, 107, 0.08)',
-              fontSize: '0.82rem',
-              color: 'var(--sage-600)'
+              background: '#f0fdf4',
+              border: '1px solid #bbf7d0',
+              fontSize: '0.84rem',
+              fontWeight: 500,
+              color: '#15803d'
             }}>
               <ShieldCheck size={16} />
               <span>Guardrails will automatically flag high GI carbs & allergen traces</span>
@@ -235,7 +239,7 @@ export const TodaySummary = () => {
 
       {/* Quick Launch Cards */}
       <div>
-        <h3 style={{ fontSize: '1.25rem', marginBottom: '16px' }}>NutriVision Core Engine Modules</h3>
+        <h3 style={{ fontSize: '1.25rem', marginBottom: '16px', color: 'var(--text-primary)' }}>NutriVision Core Engine Modules</h3>
         <div className="grid-3">
           {/* Card 1: Vision */}
           <div 
@@ -256,11 +260,11 @@ export const TodaySummary = () => {
             }}>
               <Camera size={22} />
             </div>
-            <h4 style={{ fontSize: '1.1rem', marginBottom: '8px' }}>YOLOv8 Plate Segmentation</h4>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', marginBottom: '16px' }}>
+            <h4 style={{ fontSize: '1.1rem', marginBottom: '8px', color: 'var(--text-primary)' }}>YOLOv8 Plate Segmentation</h4>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', marginBottom: '16px', lineHeight: '1.55' }}>
               Detect multiple Indian food items simultaneously on a single thali with coin/card reference-object scaling.
             </p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--emerald-400)', fontWeight: 600, fontSize: '0.85rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#15803d', fontWeight: 700, fontSize: '0.88rem' }}>
               <span>Launch Plate Scanner</span>
               <ChevronRight size={14} />
             </div>
@@ -285,11 +289,11 @@ export const TodaySummary = () => {
             }}>
               <Mic size={22} />
             </div>
-            <h4 style={{ fontSize: '1.1rem', marginBottom: '8px' }}>Hinglish Voice Logger</h4>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', marginBottom: '16px' }}>
+            <h4 style={{ fontSize: '1.1rem', marginBottom: '8px', color: 'var(--text-primary)' }}>Hinglish Voice Logger</h4>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', marginBottom: '16px', lineHeight: '1.55' }}>
               Speak naturally in code-mixed Hindi & English ("2 roti, 1 katori dal"). Whisper extracts quantities and units.
             </p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--saffron-400)', fontWeight: 600, fontSize: '0.85rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#b45309', fontWeight: 700, fontSize: '0.88rem' }}>
               <span>Start Voice Recording</span>
               <ChevronRight size={14} />
             </div>
@@ -314,11 +318,11 @@ export const TodaySummary = () => {
             }}>
               <Sparkles size={22} />
             </div>
-            <h4 style={{ fontSize: '1.1rem', marginBottom: '8px' }}>ICMR RAG Diet Coach</h4>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', marginBottom: '16px' }}>
+            <h4 style={{ fontSize: '1.1rem', marginBottom: '8px', color: 'var(--text-primary)' }}>ICMR RAG Diet Coach</h4>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', marginBottom: '16px', lineHeight: '1.55' }}>
               Context-grounded nutritional advice strictly backed by ICMR-NIN 2024 dietary guidelines with chunk citations.
             </p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--violet-400)', fontWeight: 600, fontSize: '0.85rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#7c3aed', fontWeight: 700, fontSize: '0.88rem' }}>
               <span>Chat With Diet Coach</span>
               <ChevronRight size={14} />
             </div>

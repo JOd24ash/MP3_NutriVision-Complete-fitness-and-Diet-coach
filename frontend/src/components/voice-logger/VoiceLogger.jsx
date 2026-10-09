@@ -127,8 +127,10 @@ export const VoiceLogger = () => {
         style={{
           padding: '36px 32px',
           textAlign: 'center',
-          background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(15, 23, 42, 0.9) 60%, rgba(16, 185, 129, 0.08) 100%)',
-          border: '1px solid rgba(245, 158, 11, 0.25)',
+          background: '#ffffff',
+          border: '1.5px solid var(--border-light)',
+          borderRadius: 'var(--radius-lg)',
+          boxShadow: 'var(--shadow-card)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -227,20 +229,20 @@ export const VoiceLogger = () => {
             <span className="badge badge-warning">Whisper ASR Transcript</span>
           </div>
           <div style={{ 
-            padding: '14px 18px', 
-            background: 'rgba(255, 255, 255, 0.04)', 
+            padding: '16px 20px', 
+            background: '#faf9f6', 
             borderRadius: 'var(--radius-md)', 
-            border: '1px solid var(--border-subtle)',
+            border: '1px solid var(--border-light)',
             fontSize: '1.05rem',
             fontStyle: 'italic',
-            color: '#f8fafc',
+            color: 'var(--text-primary)',
             marginBottom: '20px'
           }}>
             "{transcript}"
           </div>
 
           {/* Parsed Items Breakdown */}
-          <h4 style={{ fontSize: '1.1rem', marginBottom: '12px' }}>
+          <h4 style={{ fontSize: '1.1rem', marginBottom: '12px', color: 'var(--text-primary)' }}>
             Extracted Food Items & Portions
           </h4>
 
@@ -252,14 +254,14 @@ export const VoiceLogger = () => {
                   display: 'flex', 
                   justifyContent: 'space-between', 
                   alignItems: 'center',
-                  background: 'rgba(15, 23, 42, 0.6)',
-                  padding: '12px 18px',
+                  background: '#faf9f6',
+                  padding: '14px 18px',
                   borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-subtle)'
+                  border: '1px solid var(--border-light)'
                 }}
               >
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: '0.98rem', textTransform: 'capitalize' }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.98rem', textTransform: 'capitalize', color: 'var(--text-primary)' }}>
                     {item.food_label.replace(/_/g, ' ')}
                   </div>
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
@@ -274,7 +276,7 @@ export const VoiceLogger = () => {
                   </div>
                   <div>
                     <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>PROTEIN</span>
-                    <div style={{ fontWeight: 700, color: '#38bdf8' }}>{item.protein_g}g</div>
+                    <div style={{ fontWeight: 700, color: '#0284c7' }}>{item.protein_g}g</div>
                   </div>
                 </div>
               </div>
@@ -289,7 +291,7 @@ export const VoiceLogger = () => {
             flexWrap: 'wrap', 
             gap: '16px',
             paddingTop: '16px',
-            borderTop: '1px solid rgba(255, 255, 255, 0.08)'
+            borderTop: '1px solid var(--border-light)'
           }}>
             <div>
               <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Meal Total:</span>

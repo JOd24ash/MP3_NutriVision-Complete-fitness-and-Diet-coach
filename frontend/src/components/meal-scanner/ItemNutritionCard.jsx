@@ -137,23 +137,23 @@ export const ItemNutritionCard = ({
         gridTemplateColumns: 'repeat(4, 1fr)', 
         gap: '8px', 
         paddingTop: '6px',
-        borderTop: '1px solid rgba(255, 255, 255, 0.05)'
+        borderTop: '1px solid var(--border-light)'
       }}>
-        <div style={{ textAlign: 'center', background: 'rgba(255, 255, 255, 0.03)', padding: '6px 4px', borderRadius: '6px' }}>
-          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>ENERGY</div>
-          <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>{item.calories} <span style={{ fontSize: '0.65rem' }}>kcal</span></div>
+        <div style={{ textAlign: 'center', background: '#faf9f6', border: '1px solid var(--border-light)', padding: '6px 4px', borderRadius: '6px' }}>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>ENERGY</div>
+          <div style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)' }}>{item.calories} <span style={{ fontSize: '0.65rem' }}>kcal</span></div>
         </div>
-        <div style={{ textAlign: 'center', background: 'rgba(56, 189, 248, 0.08)', padding: '6px 4px', borderRadius: '6px' }}>
-          <div style={{ fontSize: '0.7rem', color: '#38bdf8' }}>PROTEIN</div>
-          <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#38bdf8' }}>{item.protein_g}g</div>
+        <div style={{ textAlign: 'center', background: '#f0f9ff', border: '1px solid #bae6fd', padding: '6px 4px', borderRadius: '6px' }}>
+          <div style={{ fontSize: '0.7rem', color: '#0369a1', fontWeight: 700 }}>PROTEIN</div>
+          <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0284c7' }}>{item.protein_g}g</div>
         </div>
-        <div style={{ textAlign: 'center', background: 'rgba(251, 191, 36, 0.08)', padding: '6px 4px', borderRadius: '6px' }}>
-          <div style={{ fontSize: '0.7rem', color: '#fbbf24' }}>CARBS</div>
-          <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#fbbf24' }}>{item.carbs_g}g</div>
+        <div style={{ textAlign: 'center', background: '#fffbeb', border: '1px solid #fde68a', padding: '6px 4px', borderRadius: '6px' }}>
+          <div style={{ fontSize: '0.7rem', color: '#b45309', fontWeight: 700 }}>CARBS</div>
+          <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#d97706' }}>{item.carbs_g}g</div>
         </div>
-        <div style={{ textAlign: 'center', background: 'rgba(244, 63, 94, 0.08)', padding: '6px 4px', borderRadius: '6px' }}>
-          <div style={{ fontSize: '0.7rem', color: '#f43f5e' }}>FAT</div>
-          <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#f43f5e' }}>{item.fat_g}g</div>
+        <div style={{ textAlign: 'center', background: '#fff1f2', border: '1px solid #fecdd3', padding: '6px 4px', borderRadius: '6px' }}>
+          <div style={{ fontSize: '0.7rem', color: '#be123c', fontWeight: 700 }}>FAT</div>
+          <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#e11d48' }}>{item.fat_g}g</div>
         </div>
       </div>
     </div>

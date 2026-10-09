@@ -149,7 +149,8 @@ export const MealHistory = () => {
                       key={i}
                       style={{
                         fontSize: '0.75rem',
-                        background: 'rgba(255, 255, 255, 0.05)',
+                        background: '#f4f3ef',
+                        border: '1px solid var(--border-light)',
                         padding: '3px 8px',
                         borderRadius: '4px',
                         color: 'var(--text-secondary)',
@@ -164,7 +165,7 @@ export const MealHistory = () => {
                 {/* Right: Macros & Inspect trigger */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--emerald-400)' }}>
+                    <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--sage-500)' }}>
                       {meal.total?.calories || 0} <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>kcal</span>
                     </div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
