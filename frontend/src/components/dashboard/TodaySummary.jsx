@@ -37,7 +37,7 @@ export const TodaySummary = () => {
         className="glass-panel"
         style={{ 
           padding: '28px 32px', 
-          background: 'linear-gradient(135deg, rgba(93,155,107,0.10) 0%, rgba(255,252,245,0.95) 50%, rgba(196,154,84,0.08) 100%)',
+          background: 'linear-gradient(135deg, rgba(93,155,107,0.10) 0%, rgba(248,248,246,0.97) 50%, rgba(139,120,200,0.06) 100%)',
           border: '1px solid rgba(93, 155, 107, 0.22)',
           display: 'flex',
           alignItems: 'center',

@@ -10,27 +10,27 @@
   --font-body:    'Inter',  -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono:    'JetBrains Mono', monospace;
 
-  /* ── Cream / Warm Background Palette ── */
-  --bg-page:        #f5f0e8;
-  --bg-cream:       #faf7f2;
-  --bg-card:        #ffffff;
-  --bg-card-hover:  #fdf9f4;
-  --bg-sidebar:     #1e1a14;
-  --bg-sidebar-hover: #2a2318;
-  --bg-sidebar-active: rgba(196, 154, 84, 0.18);
+  /* ── Greige (Cream-Grey) Background Palette ── */
+  --bg-page:        #edecea;
+  --bg-cream:       #f4f3f1;
+  --bg-card:        #fafaf9;
+  --bg-card-hover:  #f2f1ef;
+  --bg-sidebar:     #1c1c1e;
+  --bg-sidebar-hover: #28282c;
+  --bg-sidebar-active: rgba(196, 154, 84, 0.16);
 
   /* ── Borders ── */
-  --border-light:   rgba(139, 115, 85, 0.18);
-  --border-medium:  rgba(139, 115, 85, 0.28);
-  --border-warm:    rgba(196, 154, 84, 0.35);
+  --border-light:   rgba(100, 100, 110, 0.14);
+  --border-medium:  rgba(100, 100, 110, 0.22);
+  --border-warm:    rgba(196, 154, 84, 0.30);
   --border-sidebar: rgba(255, 255, 255, 0.07);
 
   /* ── Text ── */
-  --text-primary:   #2c1e0f;
-  --text-secondary: #6b5344;
-  --text-muted:     #a08c7a;
-  --text-sidebar:   #e8ddd0;
-  --text-sidebar-muted: #9e8e7e;
+  --text-primary:   #1a1a1f;
+  --text-secondary: #5a5a68;
+  --text-muted:     #9494a0;
+  --text-sidebar:   #e4e2df;
+  --text-sidebar-muted: #9a9490;
   --text-inverse:   #ffffff;
 
   /* ── Brand / Accent Colors ── */
@@ -75,13 +75,12 @@
   --transition:  all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 
   /* ── Legacy Dark-theme aliases (for inline styles in components) ── */
-  --border-subtle:   rgba(139, 115, 85, 0.18);
+  --border-subtle:   rgba(100, 100, 110, 0.14);
   --emerald-400:     #5d9b6b;
   --emerald-500:     #46805a;
   --emerald-600:     #3a6e4a;
   --emerald-glow:    rgba(93, 155, 107, 0.15);
-  --bg-card-hover:   #fdf9f4;
-  --bg-dark:         #f5f0e8;
+  --bg-dark:         #edecea;
   --text-inverse:    #ffffff;
 
   /* ── Sidebar sizing ── */
@@ -95,9 +94,9 @@
 body {
   background-color: var(--bg-page);
   background-image:
-    radial-gradient(circle at 10% 0%, rgba(93, 155, 107, 0.08) 0%, transparent 45%),
-    radial-gradient(circle at 90% 100%, rgba(196, 154, 84, 0.10) 0%, transparent 45%),
-    radial-gradient(circle at 50% 50%, rgba(240, 200, 120, 0.04) 0%, transparent 60%);
+    radial-gradient(circle at 12% 8%,  rgba(93, 155, 107, 0.06) 0%, transparent 40%),
+    radial-gradient(circle at 88% 92%, rgba(139, 120, 200, 0.05) 0%, transparent 40%),
+    radial-gradient(circle at 50% 50%, rgba(200, 198, 210, 0.04) 0%, transparent 55%);
   background-attachment: fixed;
   color: var(--text-primary);
   font-family: var(--font-body);
@@ -515,7 +514,7 @@ h1, h2, h3, h4, h5, h6 {
   position: sticky;
   top: 0;
   z-index: 50;
-  background: rgba(250, 247, 242, 0.88);
+  background: rgba(244, 243, 241, 0.90);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--border-light);
@@ -524,7 +523,7 @@ h1, h2, h3, h4, h5, h6 {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  box-shadow: 0 1px 8px rgba(44, 30, 15, 0.07);
+  box-shadow: 0 1px 8px rgba(26, 26, 31, 0.06);
 }
 
 .topbar-left { display: flex; align-items: center; gap: 16px; }
@@ -847,7 +846,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .app-footer {
   border-top: 1px solid var(--border-light);
-  background: rgba(250, 247, 242, 0.7);
+  background: rgba(237, 236, 234, 0.7);
   padding: 20px 32px;
   margin-top: auto;
 }
@@ -935,7 +934,7 @@ h1, h2, h3, h4, h5, h6 {
   gap: 12px;
   padding: 12px 18px;
   border-radius: var(--radius-md);
-  background: var(--bg-card);
+  background: #fafaf9;
   backdrop-filter: blur(12px);
   border: 1px solid var(--border-light);
   color: var(--text-primary);
