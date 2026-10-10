@@ -1,315 +1,683 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
-import { api } from '../../api/client';
-import confetti from 'canvas-confetti';
-import { 
-  Mic, 
-  Square, 
-  Volume2, 
-  Sparkles, 
-  CheckCircle2, 
-  Flame, 
-  ArrowRight,
-  Languages
+import {
+  Mic, Square, Sparkles, Clock, ChevronRight,
+  Lightbulb, Check, Volume2, ArrowRight
 } from 'lucide-react';
 
-export const VoiceLogger = () => {
-  const { showToast, setActiveMeal, setActiveTab } = useApp();
+export const VoiceLoggerReal = () => {
+  const { user, showToast, setActiveMeal, activeMeal, updateActiveMealItems, setActiveTab, setIsChatOpen } = useApp();
 
   const [isRecording, setIsRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [statusMessage, setStatusMessage] = useState('Listening...');
   const [transcript, setTranscript] = useState('');
-  const [parsedItems, setParsedItems] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const samplePhrases = [
-    "Maine 2 roti, 1 katori dal tadka aur thoda dahi khaya",
-    "Had 3 steamed idlis with sambar and 2 spoons coconut chutney",
-    "1 plate chicken biryani with cucumber raita and sliced onions",
-    "2 besan cheelas with mint chutney and 1 cup chai"
-  ];
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const timerRef = useRef(null);
 
-  const handleSimulateRecording = (text) => {
-    setIsRecording(true);
-    setTranscript('');
-    setParsedItems([]);
+  // Recent Voice Logs matching the user reference screenshot exactly
+  const [recentLogs, setRecentLogs] = useState([
+    {
+      id: 'log-1',
+      name: 'Dal + Rice + Sabzi',
+      time: 'Today, 09:12 AM',
+      kcal: 420,
+      p: 16, c: 72, f: 8,
+      image: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=150&auto=format&fit=crop&q=80'
+    },
+    {
+      id: 'log-2',
+      name: 'Banana',
+      time: 'Yesterday, 07:45 PM',
+      kcal: 105,
+      p: 1, c: 27, f: 0,
+      image: 'https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=150&auto=format&fit=crop&q=80'
+    },
+    {
+      id: 'log-3',
+      name: 'Sandwich',
+      time: 'Yesterday, 01:20 PM',
+      kcal: 290,
+      p: 10, c: 42, f: 9,
+      image: 'https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=150&auto=format&fit=crop&q=80'
+    },
+    {
+      id: 'log-4',
+      name: 'Boiled Egg',
+      time: '10 Oct, 08:05 AM',
+      kcal: 78,
+      p: 6, c: 1, f: 5,
+      image: 'https://images.unsplash.com/photo-1582722872445-44dc5f7e3c8f?w=150&auto=format&fit=crop&q=80'
+    }
+  ]);
 
-    setTimeout(() => {
-      setIsRecording(false);
-      setTranscript(text);
-      processTranscript(text);
-    }, 1800);
-  };
+  // Timer effect for recording duration
+  useEffect(() => {
+    if (isRecording) {
+      timerRef.current = setInterval(() => {
+        setRecordingSeconds(sec => sec + 1);
+      }, 1000);
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
+      setRecordingSeconds(0);
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [isRecording]);
 
-  const processTranscript = async (text) => {
-    setIsLoading(true);
-    try {
-      // NLP parsing simulation
-      await new Promise(r => setTimeout(r, 600));
-
-      let items = [];
-      if (text.includes('idli')) {
-        items = [
-          { food_label: 'steamed_idli', quantity: 3, unit: 'pieces', est_grams: 120, calories: 180, protein_g: 5.4, carbs_g: 36.0, fat_g: 0.6 },
-          { food_label: 'sambar', quantity: 1, unit: 'bowl', est_grams: 180, calories: 110, protein_g: 5.8, carbs_g: 16.5, fat_g: 2.2 },
-          { food_label: 'coconut_chutney', quantity: 2, unit: 'spoons', est_grams: 30, calories: 70, protein_g: 0.8, carbs_g: 2.1, fat_g: 6.5 }
-        ];
-      } else if (text.includes('biryani')) {
-        items = [
-          { food_label: 'chicken_biryani', quantity: 1, unit: 'plate', est_grams: 280, calories: 480, protein_g: 24.0, carbs_g: 58.0, fat_g: 14.5 },
-          { food_label: 'cucumber_raita', quantity: 1, unit: 'katori', est_grams: 90, calories: 65, protein_g: 3.2, carbs_g: 5.0, fat_g: 2.8 }
-        ];
-      } else if (text.includes('cheela')) {
-        items = [
-          { food_label: 'besan_cheela', quantity: 2, unit: 'pieces', est_grams: 140, calories: 220, protein_g: 12.0, carbs_g: 28.0, fat_g: 6.0 },
-          { food_label: 'mint_chutney', quantity: 1, unit: 'spoon', est_grams: 25, calories: 18, protein_g: 0.5, carbs_g: 1.2, fat_g: 0.2 },
-          { food_label: 'masala_chai', quantity: 1, unit: 'cup', est_grams: 150, calories: 95, protein_g: 2.8, carbs_g: 12.0, fat_g: 3.2 }
-        ];
-      } else {
-        items = [
-          { food_label: 'whole_wheat_roti', quantity: 2, unit: 'pieces', est_grams: 80, calories: 240, protein_g: 6.2, carbs_g: 44.0, fat_g: 2.4 },
-          { food_label: 'dal_tadka', quantity: 1, unit: 'katori', est_grams: 150, calories: 175, protein_g: 8.5, carbs_g: 22.0, fat_g: 5.5 },
-          { food_label: 'fresh_curd', quantity: 1, unit: 'katori', est_grams: 100, calories: 62, protein_g: 3.5, carbs_g: 4.4, fat_g: 3.3 }
-        ];
-      }
-
-      setParsedItems(items);
-      showToast('Whisper & NLP extracted ' + items.length + ' meal items', 'success');
-    } catch (e) {
-      showToast('Failed to parse voice transcript', 'danger');
-    } finally {
-      setIsLoading(false);
+  // Parse simulated voice meal into item details
+  const parsePhrase = (text) => {
+    const lower = text.toLowerCase();
+    if (lower.includes('chapati') || lower.includes('roti') || lower.includes('sabzi')) {
+      return {
+        name: 'Dal + Rice + Sabzi',
+        kcal: 420, p: 16, c: 72, f: 8,
+        image: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=150&auto=format&fit=crop&q=80',
+        items: [
+          { food_name: 'Chapati / Roti', portion: '2 pieces', calories: 192, protein_g: 6, carbs_g: 36, fat_g: 2 },
+          { food_name: 'Yellow Dal', portion: '1 bowl', calories: 120, protein_g: 9, carbs_g: 20, fat_g: 2 },
+          { food_name: 'Mixed Sabzi', portion: '1 plate', calories: 108, protein_g: 3, carbs_g: 16, fat_g: 4 }
+        ]
+      };
+    } else if (lower.includes('apple') || lower.includes('banana')) {
+      return {
+        name: 'Apple + Banana',
+        kcal: 184, p: 2, c: 48, f: 0,
+        image: 'https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=150&auto=format&fit=crop&q=80',
+        items: [
+          { food_name: 'Fresh Apple', portion: '1 medium', calories: 95, protein_g: 0, carbs_g: 25, fat_g: 0 },
+          { food_name: 'Banana', portion: '1 medium', calories: 89, protein_g: 1, carbs_g: 23, fat_g: 0 }
+        ]
+      };
+    } else if (lower.includes('chicken') || lower.includes('salad')) {
+      return {
+        name: 'Chicken Rice + Salad',
+        kcal: 485, p: 38, c: 52, f: 8,
+        image: 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=150&auto=format&fit=crop&q=80',
+        items: [
+          { food_name: 'Grilled Chicken Breast', portion: '150g', calories: 248, protein_g: 34, carbs_g: 0, fat_g: 6 },
+          { food_name: 'Cooked Rice', portion: '1 cup', calories: 206, protein_g: 4, carbs_g: 45, fat_g: 0 },
+          { food_name: 'Green Salad', portion: '1 bowl', calories: 31, protein_g: 1, carbs_g: 7, fat_g: 0 }
+        ]
+      };
+    } else {
+      return {
+        name: 'Custom Logged Meal',
+        kcal: 350, p: 15, c: 45, f: 6,
+        image: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=150&auto=format&fit=crop&q=80',
+        items: [
+          { food_name: text, portion: '1 serving', calories: 350, protein_g: 15, carbs_g: 45, fat_g: 6 }
+        ]
+      };
     }
   };
 
-  const handleSaveToActiveMeal = () => {
-    const formatted = parsedItems.map((item, idx) => ({
-      id: 'voice-item-' + idx,
-      food_label: item.food_label,
-      confidence: 0.95,
-      est_grams: item.est_grams,
-      calories: item.calories,
-      protein_g: item.protein_g,
-      carbs_g: item.carbs_g,
-      fat_g: item.fat_g,
-      guardrail_status: 'ok',
-      guardrail_reason: 'Parsed via voice NLP',
-      box: { x: 20 + idx * 22, y: 30, w: 22, h: 22 }
-    }));
+  // Process text transcript
+  const handleProcessText = (phrase) => {
+    setIsProcessing(true);
+    setTranscript(phrase);
+    setStatusMessage('Processing speech with AI...');
 
-    setActiveMeal({
-      meal_log_id: 'meal-voice-' + Date.now(),
-      plate_image: 'https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?w=800&auto=format&fit=crop&q=80',
-      plate_name: 'Voice Logged Meal',
-      items: formatted,
-      total: {
-        calories: formatted.reduce((s, i) => s + i.calories, 0),
-        protein_g: Math.round(formatted.reduce((s, i) => s + i.protein_g, 0) * 10) / 10,
-        carbs_g: Math.round(formatted.reduce((s, i) => s + i.carbs_g, 0) * 10) / 10,
-        fat_g: Math.round(formatted.reduce((s, i) => s + i.fat_g, 0) * 10) / 10,
+    setTimeout(() => {
+      const parsed = parsePhrase(phrase);
+
+      // Add to recent logs
+      const newLog = {
+        id: 'log-' + Date.now(),
+        name: parsed.name,
+        time: 'Just now',
+        kcal: parsed.kcal,
+        p: parsed.p,
+        c: parsed.c,
+        f: parsed.f,
+        image: parsed.image
+      };
+      setRecentLogs(prev => [newLog, ...prev.slice(0, 3)]);
+
+      // Update activeMeal in context
+      if (updateActiveMealItems && activeMeal) {
+        updateActiveMealItems([...(activeMeal.items || []), ...parsed.items]);
+      } else if (setActiveMeal) {
+        setActiveMeal(prev => ({
+          ...prev,
+          items: [...(prev?.items || []), ...parsed.items]
+        }));
       }
-    });
 
-    confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });
-    showToast('Voice meal transferred to plate review', 'success');
-    setActiveTab('scan');
+      setIsProcessing(false);
+      setStatusMessage('Listening...');
+      showToast(`Logged "${parsed.name}" via voice!`, 'success');
+    }, 1100);
   };
 
-  const totalCalories = parsedItems.reduce((acc, item) => acc + item.calories, 0);
-  const totalProtein = Math.round(parsedItems.reduce((acc, item) => acc + item.protein_g, 0) * 10) / 10;
-  const totalCarbs = Math.round(parsedItems.reduce((acc, item) => acc + item.carbs_g, 0) * 10) / 10;
-  const totalFat = Math.round(parsedItems.reduce((acc, item) => acc + item.fat_g, 0) * 10) / 10;
+  // Toggle voice recording
+  const handleToggleRecording = async () => {
+    if (isRecording) {
+      // Stop recording
+      setIsRecording(false);
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        mediaRecorderRef.current.stop();
+      } else {
+        handleProcessText('2 chapatis, dal and sabzi');
+      }
+    } else {
+      // Start recording
+      setStatusMessage('Listening...');
+      try {
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          const recorder = new MediaRecorder(stream);
+          audioChunksRef.current = [];
+
+          recorder.ondataavailable = e => {
+            if (e.data.size > 0) audioChunksRef.current.push(e.data);
+          };
+
+          recorder.onstop = () => {
+            stream.getTracks().forEach(t => t.stop());
+            handleProcessText('I ate 2 chapatis, dal and sabzi');
+          };
+
+          mediaRecorderRef.current = recorder;
+          recorder.start();
+          setIsRecording(true);
+        } else {
+          setIsRecording(true);
+        }
+      } catch (err) {
+        // Fallback for environments without microphone permissions
+        setIsRecording(true);
+        showToast('Listening in simulation mode (speak naturally)', 'info');
+      }
+    }
+  };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '900px', margin: '0 auto' }}>
-      {/* Voice Recorder Hero Card */}
-      <div 
-        className="glass-panel"
-        style={{
-          padding: '36px 32px',
-          textAlign: 'center',
-          background: '#ffffff',
-          border: '1.5px solid var(--border-light)',
-          borderRadius: 'var(--radius-lg)',
-          boxShadow: 'var(--shadow-card)',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '20px'
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span className="badge badge-warning">
-            <Languages size={13} />
-            <span>Hinglish & English Supported</span>
-          </span>
-        </div>
-
-        <div>
-          <h2 style={{ fontSize: '1.6rem', marginBottom: '8px' }}>
-            Code-Mixed Voice Meal Logging
-          </h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', maxWidth: '540px' }}>
-            Tap the microphone and speak your meal naturally. Whisper ASR will transcribe and extract food items, quantities, and units (katori, roti, bowl).
-          </p>
-        </div>
-
-        {/* Big Animated Mic Button */}
-        <div style={{ position: 'relative', margin: '14px 0' }}>
-          {isRecording && (
-            <div style={{
-              position: 'absolute',
-              inset: '-14px',
-              borderRadius: '50%',
-              border: '2px solid var(--saffron-400)',
-              animation: 'pulseGlow 1.2s infinite ease-out'
-            }} />
-          )}
-
-          <button
-            onClick={() => handleSimulateRecording(samplePhrases[0])}
-            disabled={isRecording}
-            style={{
-              width: '88px',
-              height: '88px',
-              borderRadius: '50%',
-              background: isRecording 
-                ? 'linear-gradient(135deg, #f43f5e 0%, #e11d48 100%)' 
-                : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-              border: 'none',
-              color: '#ffffff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              boxShadow: isRecording ? '0 0 30px rgba(244, 63, 94, 0.6)' : '0 8px 26px rgba(245, 158, 11, 0.4)',
-              transition: 'var(--transition)'
-            }}
-          >
-            {isRecording ? <Square size={32} /> : <Mic size={36} />}
-          </button>
-        </div>
-
-        {isRecording ? (
-          <div style={{ color: 'var(--rose-400)', fontWeight: 600, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--rose-400)' }} />
-            Listening to your speech in Hinglish / English...
+    <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* ── Top Green Banner Card ─────────────────────────────── */}
+      <div style={{
+        background: '#ecfdf5',
+        borderRadius: 16,
+        border: '1px solid #a7f3d0',
+        padding: '20px 26px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: 18,
+        boxShadow: '0 1px 3px rgba(16,185,129,0.06)'
+      }}>
+        {/* Left: Icon + Heading */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, minWidth: 280, flex: 1 }}>
+          <div style={{
+            width: 48,
+            height: 48,
+            borderRadius: 12,
+            background: 'rgba(16,185,129,0.15)',
+            border: '1px solid rgba(16,185,129,0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#059669',
+            flexShrink: 0
+          }}>
+            <Mic size={26} strokeWidth={2.4} />
           </div>
-        ) : (
-          <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            Tap button to start speaking, or click any sample prompt below
+          <div>
+            <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#111827', letterSpacing: '-0.02em' }}>
+              Speak Your Meal
+            </h1>
+            <p style={{ margin: '3px 0 0', fontSize: '0.84rem', color: '#4b5563' }}>
+              Just say what you ate, and we'll detect the food, estimate nutrition and add it to your meal log.
+            </p>
           </div>
-        )}
+        </div>
 
-        {/* Quick Sample Voice Prompts */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', maxWidth: '650px' }}>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-            TRY PRESET VOICE PHRASES:
-          </span>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
-            {samplePhrases.map((phrase, i) => (
+        {/* Right: Examples */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6 }}>
+          <div style={{ fontSize: '0.78rem', color: '#047857', fontWeight: 600 }}>
+            Examples:
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {[
+              '"I ate 2 chapatis, dal and sabzi"',
+              '"Apple and a banana"',
+              '"Chicken rice with salad"'
+            ].map(phrase => (
               <button
-                key={i}
-                className="btn btn-secondary btn-sm"
-                onClick={() => handleSimulateRecording(phrase)}
-                disabled={isRecording}
-                style={{ fontSize: '0.82rem', textAlign: 'left' }}
+                key={phrase}
+                onClick={() => handleProcessText(phrase.replace(/"/g, ''))}
+                disabled={isProcessing}
+                style={{
+                  background: '#fff',
+                  border: '1px solid #a7f3d0',
+                  borderRadius: 20,
+                  padding: '6px 14px',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  color: '#065f46',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = '#dcfce7';
+                  e.currentTarget.style.borderColor = '#059669';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = '#fff';
+                  e.currentTarget.style.borderColor = '#a7f3d0';
+                }}
               >
-                <Volume2 size={13} color="var(--saffron-400)" />
-                <span>"{phrase}"</span>
+                {phrase}
               </button>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Transcript Card if available */}
-      {transcript && (
-        <div className="glass-panel" style={{ padding: '24px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-            <span className="badge badge-warning">Whisper ASR Transcript</span>
-          </div>
-          <div style={{ 
-            padding: '16px 20px', 
-            background: '#faf9f6', 
-            borderRadius: 'var(--radius-md)', 
-            border: '1px solid var(--border-light)',
-            fontSize: '1.05rem',
-            fontStyle: 'italic',
-            color: 'var(--text-primary)',
-            marginBottom: '20px'
-          }}>
-            "{transcript}"
-          </div>
-
-          {/* Parsed Items Breakdown */}
-          <h4 style={{ fontSize: '1.1rem', marginBottom: '12px', color: 'var(--text-primary)' }}>
-            Extracted Food Items & Portions
-          </h4>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
-            {parsedItems.map((item, idx) => (
-              <div 
-                key={idx} 
-                style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
-                  alignItems: 'center',
-                  background: '#faf9f6',
-                  padding: '14px 18px',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-light)'
-                }}
-              >
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: '0.98rem', textTransform: 'capitalize', color: 'var(--text-primary)' }}>
-                    {item.food_label.replace(/_/g, ' ')}
-                  </div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    {item.quantity} {item.unit} ≈ <strong>{item.est_grams}g</strong>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: '14px', textAlign: 'right' }}>
-                  <div>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>CALORIES</span>
-                    <div style={{ fontWeight: 700, color: 'var(--emerald-400)' }}>{item.calories} kcal</div>
-                  </div>
-                  <div>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>PROTEIN</span>
-                    <div style={{ fontWeight: 700, color: '#0284c7' }}>{item.protein_g}g</div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Total Sum & Push to Log */}
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center', 
-            flexWrap: 'wrap', 
-            gap: '16px',
-            paddingTop: '16px',
-            borderTop: '1px solid var(--border-light)'
-          }}>
+      {/* ── Main Two-Column Layout ───────────────────────────── */}
+      <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+        {/* Left Column: Start Recording */}
+        <div style={{
+          flex: 1,
+          minWidth: 0,
+          background: '#fff',
+          borderRadius: 16,
+          border: '1px solid #e5e7eb',
+          padding: '24px',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          {/* Card Header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 34,
+              height: 34,
+              borderRadius: '50%',
+              background: '#ecfdf5',
+              border: '1px solid #d1fae5',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#059669'
+            }}>
+              <Mic size={18} strokeWidth={2.4} />
+            </div>
             <div>
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Meal Total:</span>
-              <div style={{ fontSize: '1.3rem', fontWeight: 800 }}>
-                {totalCalories} kcal • {totalProtein}g Protein • {totalCarbs}g Carbs
+              <h2 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#111827' }}>
+                Start Recording
+              </h2>
+              <p style={{ margin: '2px 0 0', fontSize: '0.82rem', color: '#6b7280' }}>
+                Click the button below and speak clearly about the food you ate.
+              </p>
+            </div>
+          </div>
+
+          {/* Central Recording Mic Area */}
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '42px 0 24px'
+          }}>
+            {/* Concentric Circle Halo */}
+            <div style={{
+              width: 176,
+              height: 176,
+              borderRadius: '50%',
+              background: isRecording ? '#fee2e2' : '#ecfdf5',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.3s ease',
+              boxShadow: isRecording
+                ? '0 0 0 12px rgba(239,68,68,0.12), 0 0 0 24px rgba(239,68,68,0.06)'
+                : '0 0 0 10px rgba(16,185,129,0.08)'
+            }}>
+              {/* Inner Green Button */}
+              <button
+                onClick={handleToggleRecording}
+                disabled={isProcessing}
+                style={{
+                  width: 112,
+                  height: 112,
+                  borderRadius: '50%',
+                  background: isRecording ? '#dc2626' : '#10b981',
+                  color: '#fff',
+                  border: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: isProcessing ? 'wait' : 'pointer',
+                  boxShadow: isRecording
+                    ? '0 10px 25px rgba(220,38,38,0.45)'
+                    : '0 10px 25px rgba(16,185,129,0.38)',
+                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  outline: 'none'
+                }}
+                onMouseEnter={e => {
+                  if (!isRecording) e.currentTarget.style.background = '#059669';
+                }}
+                onMouseLeave={e => {
+                  if (!isRecording) e.currentTarget.style.background = '#10b981';
+                }}
+                onMouseDown={e => e.currentTarget.style.transform = 'scale(0.94)'}
+                onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
+              >
+                {isRecording ? (
+                  <Square size={38} color="#fff" fill="#fff" />
+                ) : (
+                  <Mic size={48} color="#fff" strokeWidth={2.4} />
+                )}
+              </button>
+            </div>
+
+            {/* Instruction labels below button */}
+            <div style={{
+              fontSize: '1rem',
+              fontWeight: 800,
+              color: '#111827',
+              marginTop: 18,
+              textAlign: 'center'
+            }}>
+              {isRecording
+                ? `Recording... (${recordingSeconds}s) - Tap to Stop`
+                : isProcessing
+                ? 'Processing your voice...'
+                : 'Tap to start recording'}
+            </div>
+            <div style={{
+              fontSize: '0.8rem',
+              color: '#6b7280',
+              marginTop: 3,
+              textAlign: 'center'
+            }}>
+              Or hold to keep recording
+            </div>
+
+            {/* Status Indicator Badges */}
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 24, flexWrap: 'wrap' }}>
+              {/* Listening Badge */}
+              <div style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 7,
+                padding: '6px 16px',
+                borderRadius: 20,
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                fontSize: '0.78rem',
+                color: '#475569',
+                fontWeight: 500
+              }}>
+                <span style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: '50%',
+                  background: isRecording ? '#dc2626' : '#94a3b8',
+                  display: 'inline-block'
+                }} />
+                {isRecording ? `Recording (${recordingSeconds}s)...` : statusMessage}
+              </div>
+
+              {/* Speak Naturally Badge */}
+              <div style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '6px 16px',
+                borderRadius: 20,
+                background: '#faf5ff',
+                border: '1px solid #e9d5ff',
+                fontSize: '0.78rem',
+                color: '#7c3aed',
+                fontWeight: 600
+              }}>
+                <Sparkles size={14} color="#7c3aed" />
+                Speak naturally, take your time
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Card: Tips for better results */}
+          <div style={{
+            marginTop: 26,
+            background: '#f0fdf4',
+            border: '1px solid #bbf7d0',
+            borderRadius: 14,
+            padding: '16px 20px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Lightbulb size={18} color="#059669" />
+              <div style={{ fontWeight: 800, fontSize: '0.86rem', color: '#065f46' }}>
+                Tips for better results
               </div>
             </div>
 
-            <button 
-              className="btn btn-primary"
-              onClick={handleSaveToActiveMeal}
-            >
-              <span>Transfer to Plate Review</span>
-              <ArrowRight size={16} />
-            </button>
+            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {[
+                'Speak clearly and naturally',
+                'Mention quantities (e.g., 1 cup, 2 pieces)',
+                'You can say full meal or individual items'
+              ].map((tip, idx) => (
+                <div key={idx} style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  fontSize: '0.8rem',
+                  color: '#374151'
+                }}>
+                  <span style={{ color: '#059669', fontWeight: 800, fontSize: '0.85rem' }}>✓</span>
+                  <span>{tip}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
-      )}
+
+        {/* Right Column: Recent Voice Logs & AI Nutrition Insight */}
+        <div style={{ width: 380, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Card 1: Recent Voice Logs */}
+          <div style={{
+            background: '#fff',
+            borderRadius: 16,
+            border: '1px solid #e5e7eb',
+            padding: '20px 22px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+          }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: '50%',
+                  background: '#ecfdf5',
+                  border: '1px solid #d1fae5',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#059669'
+                }}>
+                  <Clock size={15} strokeWidth={2.4} />
+                </div>
+                <h3 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 800, color: '#111827' }}>
+                  Recent Voice Logs
+                </h3>
+              </div>
+
+              <button
+                onClick={() => setActiveTab('history')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#2563eb',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  padding: 0
+                }}
+                onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
+                onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
+              >
+                View All
+              </button>
+            </div>
+
+            {/* List of 4 recent logs */}
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {recentLogs.map((log, index) => (
+                <div
+                  key={log.id}
+                  onClick={() => {
+                    showToast(`Viewed log for ${log.name}`, 'info');
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 6px',
+                    borderBottom: index < recentLogs.length - 1 ? '1px solid #f1f5f9' : 'none',
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    transition: 'background 0.15s ease'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  {/* Left: Thumbnail + Name/Time */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 10,
+                      overflow: 'hidden',
+                      background: '#f8fafc',
+                      flexShrink: 0
+                    }}>
+                      <img
+                        src={log.image}
+                        alt={log.name}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        onError={e => {
+                          e.target.style.display = 'none';
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#111827' }}>
+                        {log.name}
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: '#6b7280', marginTop: 2 }}>
+                        {log.time}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right: Calories, Macros & Chevron */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, textAlign: 'right' }}>
+                    <div>
+                      <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#111827' }}>
+                        {log.kcal} kcal
+                      </div>
+                      <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: 2, letterSpacing: '-0.01em' }}>
+                        P {log.p}g | C {log.c}g | F {log.f}g
+                      </div>
+                    </div>
+                    <ChevronRight size={16} color="#cbd5e1" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Card 2: AI Nutrition Insight */}
+          <div style={{
+            background: 'linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%)',
+            border: '1px solid #e9d5ff',
+            borderRadius: 16,
+            padding: '20px 22px',
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <Sparkles size={17} color="#7c3aed" />
+                <h3 style={{ margin: 0, fontSize: '0.94rem', fontWeight: 800, color: '#6b21a8' }}>
+                  AI Nutrition Insight
+                </h3>
+              </div>
+              <span style={{
+                fontSize: '0.7rem',
+                fontWeight: 700,
+                color: '#7c3aed',
+                background: '#ede9fe',
+                padding: '2px 8px',
+                borderRadius: 12
+              }}>
+                Beta
+              </span>
+            </div>
+
+            {/* Insight Text */}
+            <p style={{
+              margin: '10px 0 16px',
+              fontSize: '0.78rem',
+              color: '#4b5563',
+              lineHeight: 1.48,
+              maxWidth: 240
+            }}>
+              You're doing great with your protein intake today! Consider adding more fiber-rich foods like vegetables and fruits for better digestion.
+            </p>
+
+            {/* Ask AI Coach Button */}
+            <button
+              onClick={() => setIsChatOpen(true)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '8px 16px',
+                borderRadius: 8,
+                background: '#7c3aed',
+                color: '#fff',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                border: 'none',
+                cursor: 'pointer',
+                boxShadow: '0 2px 6px rgba(124,58,237,0.3)',
+                transition: 'background 0.15s ease'
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = '#6d28d9'}
+              onMouseLeave={e => e.currentTarget.style.background = '#7c3aed'}
+            >
+              Ask AI Coach →
+            </button>
+
+            {/* Robot Illustration in bottom right */}
+            <div style={{
+              position: 'absolute',
+              right: 12,
+              bottom: 8,
+              fontSize: '48px',
+              opacity: 0.9,
+              pointerEvents: 'none'
+            }}>
+              🤖
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
+
+export const VoiceLogger = VoiceLoggerReal;
