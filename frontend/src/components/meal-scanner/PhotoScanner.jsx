@@ -311,68 +311,39 @@ export const PhotoScanner = () => {
               </span>
             </div>
 
-            {/* Food items list */}
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {/* Food items grid — 2-column card layout */}
+            <div className="scanner-items-grid">
               {detectedItems.map((item, idx) => (
                 <div
                   key={item.id}
-                  className="scanner-item-row"
+                  className={`scanner-item-card${selectedItemIndex === idx ? ' selected' : ''}`}
                   onClick={() => setSelectedItemIndex(selectedItemIndex === idx ? null : idx)}
-                  style={{
-                    borderColor: selectedItemIndex === idx ? '#bbf7d0' : '#f1f1f4',
-                    background: selectedItemIndex === idx ? '#f0fdf4' : '#fafafc'
-                  }}
                 >
-                  {/* Left: Thumbnail & Name */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: '50%',
-                      overflow: 'hidden',
-                      background: '#f1f5f9',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                      boxShadow: '0 2px 6px rgba(0,0,0,0.06)'
-                    }}>
-                      <img
-                        src={item.image}
-                        alt={item.name}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        onError={(e) => {
-                          e.target.style.display = 'none';
-                          e.target.parentElement.innerHTML = `<span style="font-size: 20px">${item.emoji}</span>`;
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#18181b' }}>
-                        {item.name}
-                      </div>
-                      <div style={{ fontSize: '0.74rem', color: '#9ca3af' }}>
-                        {item.category}
-                      </div>
-                    </div>
-                  </div>
+                  {/* Image banner */}
+                  <img
+                    src={item.image}
+                    alt={item.name}
+                    className="scanner-item-card__img"
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                      const ph = document.createElement('div');
+                      ph.className = 'scanner-item-card__img-placeholder';
+                      ph.textContent = item.emoji;
+                      e.target.parentElement.insertBefore(ph, e.target.nextSibling);
+                    }}
+                  />
 
-                  {/* Middle: Portion */}
-                  <div style={{ fontSize: '0.82rem', color: '#4b5563', fontWeight: 500 }}>
-                    {item.portion}
-                  </div>
-
-                  {/* Right: Calories, Macros & Chevron */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, textAlign: 'right' }}>
-                    <div>
-                      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#18181b' }}>
-                        {item.calories} kcal
-                      </div>
-                      <div style={{ fontSize: '0.72rem', color: '#9ca3af' }}>
-                        {item.protein}g P | {item.carbs}g C | {item.fat}g F
+                  {/* Card body */}
+                  <div className="scanner-item-card__body">
+                    <div className="scanner-item-card__name">{item.name}</div>
+                    <div className="scanner-item-card__category">{item.category}</div>
+                    <div className="scanner-item-card__portion">{item.portion}</div>
+                    <div className="scanner-item-card__footer">
+                      <div className="scanner-item-card__calories">{item.calories} kcal</div>
+                      <div className="scanner-item-card__macros">
+                        {item.protein}g P · {item.carbs}g C · {item.fat}g F
                       </div>
                     </div>
-                    <ChevronRight size={16} style={{ color: '#9ca3af' }} />
                   </div>
                 </div>
               ))}
