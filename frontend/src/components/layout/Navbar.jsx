@@ -8,6 +8,7 @@ import {
   Activity,
   Sparkles,
   LogOut,
+  Calendar,
   Bell
 } from 'lucide-react';
 
@@ -44,7 +45,10 @@ export const Navbar = () => {
 
       <div className="topbar-right">
         {/* Date */}
-        <div className="topbar-date">{timeStr}</div>
+        <div className="topbar-date" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+          <Calendar size={14} style={{ opacity: 0.75 }} />
+          <span>{timeStr}</span>
+        </div>
 
         {/* AI Coach Button */}
         <button
