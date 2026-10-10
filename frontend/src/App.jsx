@@ -52,15 +52,7 @@ export const App = () => {
         </footer>
       </div>
 
-      {/* Floating Chat Button */}
-      <button
-        onClick={() => setIsChatOpen(true)}
-        className="btn btn-ai animate-pulse-glow fab-chat"
-        aria-label="Open AI Diet Coach"
-      >
-        <Sparkles size={20} />
-        <span>Ask Diet Coach</span>
-      </button>
+
 
       {/* Overlays */}
       <ChatDrawer />
