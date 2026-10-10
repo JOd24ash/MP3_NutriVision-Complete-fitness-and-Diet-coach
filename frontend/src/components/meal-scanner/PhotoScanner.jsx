@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { PlateCanvas } from './PlateCanvas';
 import { ItemNutritionCard } from './ItemNutritionCard';
-import { SAMPLE_PLATES } from '../../api/mockData';
 import { api } from '../../api/client';
 import confetti from 'canvas-confetti';
 import { 
@@ -19,6 +18,7 @@ import {
 export const PhotoScanner = () => {
   const { 
     activeMeal, 
+    user,
     setActiveMeal, 
     updateActiveMealItems, 
     showToast, 
@@ -29,8 +29,11 @@ export const PhotoScanner = () => {
   const [referenceObject, setReferenceObject] = useState('credit_card');
   const [referenceScaleCm, setReferenceScaleCm] = useState(8.56);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisStep, setAnalysisStep] = useState('');
   const [isSaved, setIsSaved] = useState(false);
+  const [imageFile, setImageFile] = useState(null);
+  const [referencePixels, setReferencePixels] = useState('');
+  const [foodQuery, setFoodQuery] = useState('');
+  const [foodMatches, setFoodMatches] = useState([]);
 
   const handleReferenceChange = (type) => {
     setReferenceObject(type);
@@ -39,28 +42,10 @@ export const PhotoScanner = () => {
     else if (type === 'quarter_plate') setReferenceScaleCm(20.0);
   };
 
-  const handleSelectSample = (sample) => {
-    setIsSaved(false);
-    setActiveMeal({
-      meal_log_id: 'meal-' + sample.id,
-      plate_image: sample.image,
-      plate_name: sample.name,
-      items: sample.items,
-      total: {
-        calories: sample.items.reduce((s, i) => s + (i.calories || 0), 0),
-        protein_g: Math.round(sample.items.reduce((s, i) => s + (i.protein_g || 0), 0) * 10) / 10,
-        carbs_g: Math.round(sample.items.reduce((s, i) => s + (i.carbs_g || 0), 0) * 10) / 10,
-        fat_g: Math.round(sample.items.reduce((s, i) => s + (i.fat_g || 0), 0) * 10) / 10,
-      },
-      reference_object: referenceObject,
-      reference_scale_cm: referenceScaleCm
-    });
-    showToast(`Loaded sample: ${sample.name}`, 'info');
-  };
-
   const handleFileUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setImageFile(file);
 
     const reader = new FileReader();
     reader.onload = () => {
@@ -70,68 +55,53 @@ export const PhotoScanner = () => {
         plate_image: reader.result,
         plate_name: file.name
       }));
-      triggerAnalysis();
     };
     reader.readAsDataURL(file);
   };
 
   const triggerAnalysis = async () => {
+    if (!imageFile) return showToast('Choose a plate photo first', 'danger');
+    if (!(Number(referencePixels) > 0)) return showToast('Enter the measured reference width in pixels', 'danger');
     setIsAnalyzing(true);
-    setAnalysisStep('1/4: Running YOLOv8-Seg plate contour detection...');
 
     try {
-      await new Promise(r => setTimeout(r, 400));
-      setAnalysisStep('2/4: Refining classification against Indian Food Taxonomy...');
-      await new Promise(r => setTimeout(r, 450));
-      setAnalysisStep('3/4: Estimating portion volume & reference scaling...');
-      await new Promise(r => setTimeout(r, 400));
-      setAnalysisStep('4/4: Cross-checking medical & allergen guardrails...');
-      await new Promise(r => setTimeout(r, 350));
-
-      // Use API client
       const formData = new FormData();
-      formData.append('reference_object_px', '180');
+      formData.append('image', imageFile);
+      formData.append('user_id', user.id);
+      formData.append('reference_object_px', referencePixels);
       formData.append('reference_object_real_cm', String(referenceScaleCm));
       
       const res = await api.meals.logPhoto(formData);
-      updateActiveMealItems(res.items);
+      setActiveMeal(prev => ({ ...prev, meal_log_id: res.meal_log_id, items: res.items, total: res.total }));
       showToast('Vision pipeline detected ' + res.items.length + ' Indian food items', 'success');
     } catch (err) {
       showToast('Analysis error: ' + err.message, 'danger');
     } finally {
       setIsAnalyzing(false);
-      setAnalysisStep('');
     }
   };
 
-  const handleUpdateItem = (updated) => {
-    const updatedList = activeMeal.items.map(i => i.id === updated.id ? updated : i);
-    updateActiveMealItems(updatedList);
+  const handleUpdateItem = async (changes, itemId) => {
+    try {
+      const updated = await api.meals.patchItem(activeMeal.meal_log_id, itemId, changes);
+      updateActiveMealItems(activeMeal.items.map(i => i.id === updated.id ? updated : i));
+    } catch (err) { showToast(err.message, 'danger'); }
   };
 
-  const handleDeleteItem = (itemId) => {
-    const updatedList = activeMeal.items.filter(i => i.id !== itemId);
-    updateActiveMealItems(updatedList);
-    showToast('Removed item from plate log', 'info');
+  const handleDeleteItem = async (itemId) => {
+    try {
+      await api.meals.deleteItem(activeMeal.meal_log_id, itemId);
+      updateActiveMealItems(activeMeal.items.filter(i => i.id !== itemId));
+    } catch (err) { showToast(err.message, 'danger'); }
   };
 
-  const handleAddItem = () => {
-    const newItem = {
-      id: 'item-custom-' + Date.now(),
-      food_label: 'plain_curd',
-      confidence: 0.92,
-      est_grams: 100,
-      calories: 60,
-      protein_g: 3.5,
-      carbs_g: 4.5,
-      fat_g: 3.0,
-      guardrail_status: 'ok',
-      guardrail_reason: 'Healthy probiotic source',
-      box: { x: 40, y: 70, w: 20, h: 20 },
-      color: '#10b981'
-    };
-    updateActiveMealItems([...activeMeal.items, newItem]);
-    showToast('Added item to meal', 'success');
+  const handleAddItem = async () => {
+    if (!foodQuery) return;
+    try {
+      const item = await api.meals.addItem(activeMeal.meal_log_id, { food_label: foodQuery, est_grams: 100 });
+      updateActiveMealItems([...activeMeal.items, item]);
+      setFoodQuery(''); setFoodMatches([]);
+    } catch (err) { showToast(err.message, 'danger'); }
   };
 
   const handleConfirmMeal = async () => {
@@ -159,7 +129,7 @@ export const PhotoScanner = () => {
               Multi-Item Indian Plate Scanner
             </h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-              Upload your plate photo or try sample Indian thalis with reference-object scaling.
+              Upload your plate photo and measure a visible reference object for portion estimates.
             </p>
           </div>
 
@@ -179,22 +149,7 @@ export const PhotoScanner = () => {
           </div>
         </div>
 
-        {/* Quick Sample Plate Buttons */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-            Try Sample Plates:
-          </span>
-          {SAMPLE_PLATES.map((sample) => (
-            <button
-              key={sample.id}
-              className={`btn btn-sm ${activeMeal.plate_name === sample.name ? 'btn-primary' : 'btn-secondary'}`}
-              onClick={() => handleSelectSample(sample)}
-            >
-              <span>{sample.name}</span>
-            </button>
-          ))}
-
-          {/* Custom File Upload Button */}
           <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer' }}>
             <UploadCloud size={16} />
             <span>Upload My Plate</span>
@@ -205,6 +160,8 @@ export const PhotoScanner = () => {
               style={{ display: 'none' }} 
             />
           </label>
+          <input className="text-input" style={{ width: 180 }} type="number" min="1" placeholder="Reference px" value={referencePixels} onChange={e => setReferencePixels(e.target.value)} />
+          <button className="btn btn-primary btn-sm" onClick={triggerAnalysis} disabled={isAnalyzing}>Analyze photo</button>
         </div>
       </div>
 
@@ -229,7 +186,7 @@ export const PhotoScanner = () => {
               Inference in Progress
             </div>
             <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-              {analysisStep}
+              Analyzing the uploaded photo and checking guardrails…
             </div>
           </div>
         </div>
@@ -307,9 +264,12 @@ export const PhotoScanner = () => {
               Detected Food Items ({activeMeal.items.length})
             </h3>
             <div style={{ display: 'flex', gap: '8px' }}>
+              <input className="text-input" list="food-options" placeholder="Search food" value={foodQuery} onChange={async e => { const query = e.target.value; setFoodQuery(query); if (query.length >= 2) setFoodMatches(await api.nutrition.search(query)); }} />
+              <datalist id="food-options">{foodMatches.map(food => <option key={food.food_label} value={food.food_label} />)}</datalist>
               <button 
                 className="btn btn-secondary btn-sm"
                 onClick={handleAddItem}
+                disabled={!activeMeal.meal_log_id || !foodQuery}
               >
                 <Plus size={14} />
                 <span>Add Item</span>
@@ -336,7 +296,7 @@ export const PhotoScanner = () => {
                 item={item}
                 isSelected={selectedItemId === item.id}
                 onSelect={() => setSelectedItemId(item.id)}
-                onUpdate={handleUpdateItem}
+                onUpdate={(changes) => handleUpdateItem(changes, item.id)}
                 onDelete={handleDeleteItem}
               />
             ))

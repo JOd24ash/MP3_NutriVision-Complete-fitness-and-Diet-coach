@@ -5,6 +5,7 @@ psycopg2-binary
 pydantic
 email-validator
 python-multipart
+python-dotenv
 
 # auth
 python-jose[cryptography]

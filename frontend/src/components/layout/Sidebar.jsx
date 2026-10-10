@@ -68,7 +68,7 @@ export const Sidebar = () => {
       <div className={`sidebar-status ${isBackendOnline ? 'sidebar-status-online' : 'sidebar-status-demo'}`}>
         <div className="sidebar-status-dot" />
         {!collapsed && (
-          <span>{isBackendOnline ? 'FastAPI Live' : 'Demo Engine'}</span>
+          <span>{isBackendOnline ? 'FastAPI Live' : 'Backend offline'}</span>
         )}
         {collapsed && (isBackendOnline ? <Wifi size={13} /> : <WifiOff size={13} />)}
       </div>

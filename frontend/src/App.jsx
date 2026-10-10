@@ -11,9 +11,12 @@ import { HealthMetrics } from './components/history/HealthMetrics';
 import { ChatDrawer } from './components/chat/ChatDrawer';
 import { ProfileSettingsModal } from './components/guardrails/ProfileSettingsModal';
 import { Sparkles } from 'lucide-react';
+import { AuthScreen } from './components/auth/AuthScreen';
 
 export const App = () => {
-  const { activeTab, setIsChatOpen } = useApp();
+  const { activeTab, setIsChatOpen, user, isBackendOnline } = useApp();
+
+  if (!user) return <AuthScreen />;
 
   return (
     <div className="app-shell">
@@ -22,6 +25,7 @@ export const App = () => {
 
       {/* Right Column: topbar + content */}
       <div className="app-body">
+        {!isBackendOnline && <div role="status" style={{ padding: '10px 16px', background: '#fef3c7', color: '#92400e', textAlign: 'center' }}>Demo mode (backend offline). Sign in is unavailable until the API is running.</div>}
         {/* Top Header Bar */}
         <Navbar />
 
@@ -41,7 +45,7 @@ export const App = () => {
               <span className="footer-logo">🥗</span>
               <span className="footer-name">NutriVision AI</span>
               <span className="footer-sep">•</span>
-              <span className="footer-tagline">ICMR-NIN 2024 Dietary Guardrails &amp; YOLOv8 Multi-Item Plate Segmentation</span>
+              <span className="footer-tagline">Nutrition estimates only — not medical advice.</span>
             </div>
             <div className="footer-tech">
               <span>FastAPI</span>

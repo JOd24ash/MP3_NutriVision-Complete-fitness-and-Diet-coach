@@ -2,11 +2,11 @@ import {
   SAMPLE_PLATES, 
   MOCK_USER_PROFILE, 
   MOCK_HISTORY_MEALS, 
-  MOCK_HEALTH_METRICS,
-  MOCK_CHAT_SAMPLES 
+  MOCK_HEALTH_METRICS
 } from './mockData';
 
 const BASE_URL = '/api/v1';
+const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
 
 // Token storage helper
 const TOKEN_KEY = 'nutrivision_token';
@@ -22,23 +22,23 @@ export const removeToken = () => {
 export const getStoredUser = () => {
   try {
     const u = localStorage.getItem(USER_KEY);
-    return u ? JSON.parse(u) : MOCK_USER_PROFILE;
+    return u ? JSON.parse(u) : null;
   } catch (e) {
-    return MOCK_USER_PROFILE;
+    return null;
   }
 };
 export const setStoredUser = (user) => localStorage.setItem(USER_KEY, JSON.stringify(user));
 
 // State for backend connectivity
-let isLiveBackendAvailable = false;
+let isLiveBackendAvailable = DEMO_MODE;
 
 export const checkBackendStatus = async () => {
   try {
-    const res = await fetch('/api/v1/auth/login', { 
+    const res = await fetch(`${BASE_URL}/auth/login`, {
       method: 'OPTIONS',
       signal: AbortSignal.timeout(1800)
     });
-    isLiveBackendAvailable = res.ok || res.status === 405 || res.status === 422;
+    isLiveBackendAvailable = DEMO_MODE || res.ok || res.status === 405 || res.status === 422;
   } catch (err) {
     isLiveBackendAvailable = false;
   }
@@ -57,7 +57,7 @@ export const api = {
   // Auth
   auth: {
     async login(email, password) {
-      if (!isLiveBackendAvailable) {
+      if (DEMO_MODE) {
         // Mock success
         const token = 'mock_jwt_token_' + Date.now();
         setToken(token);
@@ -76,11 +76,12 @@ export const api = {
       }
       const data = await res.json();
       setToken(data.access_token);
+      setStoredUser(data.user);
       return data;
     },
 
     async signup(name, email, password) {
-      if (!isLiveBackendAvailable) {
+      if (DEMO_MODE) {
         const token = 'mock_jwt_token_' + Date.now();
         setToken(token);
         const user = { ...MOCK_USER_PROFILE, name, email };
@@ -98,6 +99,7 @@ export const api = {
       }
       const data = await res.json();
       setToken(data.access_token);
+      setStoredUser(data.user);
       return data;
     },
 
@@ -109,7 +111,7 @@ export const api = {
   // Profile & Medical Guardrails
   profile: {
     async get(userId) {
-      if (!isLiveBackendAvailable) {
+      if (DEMO_MODE) {
         return getStoredUser();
       }
       const res = await fetch(`${BASE_URL}/users/${userId}/profile`, {
@@ -120,7 +122,7 @@ export const api = {
     },
 
     async update(userId, data) {
-      if (!isLiveBackendAvailable) {
+      if (DEMO_MODE) {
         const current = getStoredUser();
         const updated = { ...current, ...data };
         setStoredUser(updated);
@@ -136,10 +138,18 @@ export const api = {
     }
   },
 
+  nutrition: {
+    async search(query) {
+      const res = await fetch(`${BASE_URL}/nutrition/foods?query=${encodeURIComponent(query)}`, { headers: authHeaders() });
+      if (!res.ok) throw new Error('Food search is unavailable');
+      return await res.json();
+    }
+  },
+
   // Meals (Photo / Voice / Edit / Confirm)
   meals: {
     async logPhoto(formData) {
-      if (!isLiveBackendAvailable) {
+      if (DEMO_MODE) {
         // Simulate realistic computer-vision delay
         await new Promise(r => setTimeout(r, 900));
         const plate = SAMPLE_PLATES[0];
@@ -168,22 +178,7 @@ export const api = {
     },
 
     async logVoice(formData) {
-      if (!isLiveBackendAvailable) {
-        await new Promise(r => setTimeout(r, 800));
-        const plate = SAMPLE_PLATES[1];
-        return {
-          meal_log_id: 'meal-v-' + Math.random().toString(36).substring(2, 9),
-          transcript: "Maine 3 idli, 1 bowl sambar aur 2 chammach coconut chutney khayi hai",
-          items: plate.items,
-          total: {
-            calories: 385,
-            protein_g: 12.4,
-            carbs_g: 55.5,
-            fat_g: 11.9
-          },
-          needs_manual_review: false
-        };
-      }
+      if (DEMO_MODE) throw new Error('Voice logging is unavailable in demo mode');
       const res = await fetch(`${BASE_URL}/meals/voice`, {
         method: 'POST',
         headers: { ...authHeaders() },
@@ -197,19 +192,7 @@ export const api = {
     },
 
     async patchItem(mealLogId, itemId, data) {
-      if (!isLiveBackendAvailable) {
-        return {
-          id: itemId,
-          food_label: data.food_label || 'custom_item',
-          est_grams: data.est_grams || 100,
-          calories: Math.round((data.est_grams || 100) * 1.8),
-          protein_g: Math.round(((data.est_grams || 100) * 0.08) * 10) / 10,
-          carbs_g: Math.round(((data.est_grams || 100) * 0.22) * 10) / 10,
-          fat_g: Math.round(((data.est_grams || 100) * 0.04) * 10) / 10,
-          guardrail_status: 'ok',
-          guardrail_reason: 'Updated portion within safety thresholds'
-        };
-      }
+      if (DEMO_MODE) throw new Error('Meal editing is unavailable in demo mode');
       const res = await fetch(`${BASE_URL}/meals/${mealLogId}/items/${itemId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
@@ -219,10 +202,19 @@ export const api = {
       return await res.json();
     },
 
+    async addItem(mealLogId, data) {
+      const res = await fetch(`${BASE_URL}/meals/${mealLogId}/items`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(data) });
+      if (!res.ok) throw new Error('Failed to add meal item');
+      return await res.json();
+    },
+
+    async deleteItem(mealLogId, itemId) {
+      const res = await fetch(`${BASE_URL}/meals/${mealLogId}/items/${itemId}`, { method: 'DELETE', headers: authHeaders() });
+      if (!res.ok) throw new Error('Failed to remove meal item');
+    },
+
     async confirm(mealLogId) {
-      if (!isLiveBackendAvailable) {
-        return { confirmed: true, meal_log_id: mealLogId };
-      }
+      if (DEMO_MODE) throw new Error('Meal confirmation is unavailable in demo mode');
       const res = await fetch(`${BASE_URL}/meals/${mealLogId}/confirm`, {
         method: 'POST',
         headers: { ...authHeaders() }
@@ -232,13 +224,13 @@ export const api = {
     },
 
     async listHistory(userId) {
-      if (!isLiveBackendAvailable) {
+      if (DEMO_MODE) {
         return MOCK_HISTORY_MEALS;
       }
       const res = await fetch(`${BASE_URL}/users/${userId}/meals`, {
         headers: { ...authHeaders() }
       });
-      if (!res.ok) return MOCK_HISTORY_MEALS;
+      if (!res.ok) throw new Error('Failed to load meal history');
       return await res.json();
     }
   },
@@ -246,17 +238,17 @@ export const api = {
   // Health Metrics
   metrics: {
     async list(userId, type = null) {
-      if (!isLiveBackendAvailable) {
+      if (DEMO_MODE) {
         return type ? MOCK_HEALTH_METRICS.filter(m => m.metric_type === type) : MOCK_HEALTH_METRICS;
       }
       const url = type ? `${BASE_URL}/users/${userId}/health-metrics?type=${type}` : `${BASE_URL}/users/${userId}/health-metrics`;
       const res = await fetch(url, { headers: { ...authHeaders() } });
-      if (!res.ok) return MOCK_HEALTH_METRICS;
+      if (!res.ok) throw new Error('Failed to load health metrics');
       return await res.json();
     },
 
     async add(userId, payload) {
-      if (!isLiveBackendAvailable) {
+      if (DEMO_MODE) {
         const item = {
           id: 'm-' + Date.now(),
           metric_type: payload.metric_type,
@@ -280,22 +272,7 @@ export const api = {
   // RAG Chatbot
   chat: {
     async send(userId, message) {
-      if (!isLiveBackendAvailable) {
-        await new Promise(r => setTimeout(r, 700));
-        const matched = MOCK_CHAT_SAMPLES.find(s => 
-          message.toLowerCase().includes('sugar') || 
-          message.toLowerCase().includes('diabet') ||
-          message.toLowerCase().includes('thali')
-        );
-        if (matched) return matched;
-        return {
-          answer: `According to ICMR & National Institute of Nutrition (NIN) dietary guidelines, a balanced Indian plate should comprise ~50% non-starchy vegetables & salads, 25% whole-grain/millets complex carbohydrates, and 25% plant/dairy protein (pulses, sprouts, paneer, eggs).\n\nRegarding your question "${message}": Ensure optimal portioning, minimize refined oils, and avoid trans-fatty acids.`,
-          sources: [
-            { title: "ICMR Dietary Guidelines for Indians (2024)", chunk_ref: "Chapter 3: Composition of an Ideal Indian Thali" }
-          ],
-          guardrail_flags: []
-        };
-      }
+      if (DEMO_MODE) throw new Error('Chat is unavailable in demo mode');
       const res = await fetch(`${BASE_URL}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },

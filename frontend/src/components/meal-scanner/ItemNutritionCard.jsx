@@ -16,22 +16,14 @@ export const ItemNutritionCard = ({
   const handleGramsChange = (e) => {
     const newGrams = Number(e.target.value);
     setGrams(newGrams);
-    // Approximate scaling
-    const factor = newGrams / (item.est_grams || 1);
     onUpdate({
-      ...item,
       est_grams: newGrams,
-      calories: Math.round((item.calories || 0) * factor),
-      protein_g: Math.round((item.protein_g || 0) * factor * 10) / 10,
-      carbs_g: Math.round((item.carbs_g || 0) * factor * 10) / 10,
-      fat_g: Math.round((item.fat_g || 0) * factor * 10) / 10,
     });
   };
 
   const handleLabelSave = () => {
     setIsEditing(false);
     onUpdate({
-      ...item,
       food_label: label
     });
   };

@@ -11,6 +11,7 @@ the RAG knowledge base) before this touches real user-facing advice.
 """
 
 from typing import Dict, List, Optional, TypedDict
+from ..nutrition.labels import normalize_food_label
 
 
 class FoodHealthProfile(TypedDict):
@@ -44,6 +45,7 @@ FOOD_HEALTH_DB: Dict[str, FoodHealthProfile] = {
             "ckd": "Relatively high in phosphorus — caution with reduced kidney function.",
         },
     },
+    "dahi": {"allergens": ["dairy", "milk"], "condition_tags": {}},
     "idli": {
         "allergens": [],
         "condition_tags": {},
@@ -59,4 +61,4 @@ DIABETES_CARB_WARNING_THRESHOLD_G = 40.0
 def get_food_health_profile(food_label: str) -> Optional[FoodHealthProfile]:
     if not food_label:
         return None
-    return FOOD_HEALTH_DB.get(food_label.strip().lower())
+    return FOOD_HEALTH_DB.get(normalize_food_label(food_label))

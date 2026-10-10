@@ -13,6 +13,7 @@ Validation rules enforced here:
 from typing import List
 
 from .database import get_nutrition_per_100g
+from .labels import normalize_food_label
 from .models import (
     FoodItemInput,
     FoodItemNutritionResult,
@@ -29,11 +30,12 @@ def _scale(value_per_100g: float, grams: float) -> float:
 
 def compute_item_nutrition(item: FoodItemInput) -> FoodItemNutritionResult:
     """Compute nutrition for a single food item, applying validation rules."""
-    per_100g = get_nutrition_per_100g(item.food_label)
+    canonical_label = normalize_food_label(item.food_label)
+    per_100g = get_nutrition_per_100g(canonical_label)
 
     if per_100g is None:
         return FoodItemNutritionResult(
-            food_label=item.food_label,
+            food_label=canonical_label,
             estimated_grams=item.estimated_grams,
             confidence=item.confidence,
             nutrition=None,
@@ -42,7 +44,7 @@ def compute_item_nutrition(item: FoodItemInput) -> FoodItemNutritionResult:
 
     if item.estimated_grams is None:
         return FoodItemNutritionResult(
-            food_label=item.food_label,
+            food_label=canonical_label,
             estimated_grams=None,
             confidence=item.confidence,
             nutrition=None,
@@ -58,7 +60,7 @@ def compute_item_nutrition(item: FoodItemInput) -> FoodItemNutritionResult:
     )
 
     return FoodItemNutritionResult(
-        food_label=item.food_label,
+        food_label=canonical_label,
         estimated_grams=grams,
         confidence=item.confidence,
         nutrition=nutrition,

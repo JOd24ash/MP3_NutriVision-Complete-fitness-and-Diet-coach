@@ -1,18 +1,13 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { X, ShieldAlert, HeartPulse, Sliders, Check, UserCheck } from 'lucide-react';
+import { X, ShieldAlert, HeartPulse, Check, UserCheck } from 'lucide-react';
 
 const COMMON_ALLERGIES = [
-  'Peanuts', 'Tree Nuts', 'Dairy/Milk', 'Gluten', 'Shellfish', 'Soy', 'Eggs', 'Mustard'
+  'gluten', 'wheat', 'dairy', 'peanuts', 'tree_nuts', 'soy', 'egg', 'fish', 'shellfish', 'legumes', 'sesame'
 ];
 
 const COMMON_CONDITIONS = [
-  'Type 2 Diabetes Risk', 
-  'Mild Hypertension', 
-  'Celiac Disease', 
-  'Chronic Kidney Disease', 
-  'Dyslipidemia / High Cholesterol', 
-  'Hyperuricemia (High Uric Acid)'
+  'diabetes', 'hypertension', 'ckd', 'high_cholesterol', 'pcos', 'thyroid'
 ];
 
 export const ProfileSettingsModal = () => {
@@ -172,7 +167,7 @@ export const ProfileSettingsModal = () => {
                   }}
                 >
                   {active && <Check size={13} />}
-                  <span>{cond}</span>
+                  <span>{cond.replace(/_/g, ' ')}</span>
                 </button>
               );
             })}
@@ -198,7 +193,7 @@ export const ProfileSettingsModal = () => {
                   style={{ fontSize: '0.82rem' }}
                 >
                   {active && <Check size={13} />}
-                  <span>{allg}</span>
+                  <span>{allg.replace(/_/g, ' ')}</span>
                 </button>
               );
             })}

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from .db.models import MetricType
 
@@ -17,13 +17,20 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class UserResponse(BaseModel):
+    id: str
+    name: str
+    email: str
+
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    user: UserResponse
 
 
 class ProfileResponse(BaseModel):
-    user_id: str
+    id: str
     name: str
     email: str
     allergies: List[str]
@@ -34,10 +41,28 @@ class ProfileUpdateRequest(BaseModel):
     allergies: List[str]
     conditions: List[str]
 
+    @field_validator("allergies", "conditions")
+    @classmethod
+    def validate_values(cls, values: List[str], info):
+        allowed = {
+            "allergies": {"gluten", "wheat", "dairy", "peanuts", "tree_nuts", "soy", "egg", "fish", "shellfish", "legumes", "sesame"},
+            "conditions": {"diabetes", "hypertension", "ckd", "high_cholesterol", "pcos", "thyroid"},
+        }[info.field_name]
+        normalized = [value.strip().lower().replace(" ", "_") for value in values]
+        invalid = sorted(set(normalized) - allowed)
+        if invalid:
+            raise ValueError(f"Unsupported {info.field_name}: {', '.join(invalid)}")
+        return list(dict.fromkeys(normalized))
+
 
 class MealItemPatchRequest(BaseModel):
     food_label: Optional[str] = None
     est_grams: Optional[float] = None
+
+
+class MealItemCreateRequest(BaseModel):
+    food_label: str = Field(min_length=1)
+    est_grams: float = Field(gt=0)
 
 
 class MealTotalOut(BaseModel):

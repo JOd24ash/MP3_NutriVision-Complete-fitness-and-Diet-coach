@@ -9,6 +9,7 @@ beyond `.strip().lower()`.
 """
 
 from typing import Optional, TypedDict
+from .labels import normalize_food_label
 
 
 class NutritionPer100g(TypedDict):
@@ -23,6 +24,7 @@ NUTRITION_DB: dict[str, NutritionPer100g] = {
     "rice": {"kcal": 130, "protein": 2.7, "carbs": 28.2, "fat": 0.3},
     "dal": {"kcal": 116, "protein": 9.0, "carbs": 20.0, "fat": 0.4},
     "paneer": {"kcal": 265, "protein": 18.3, "carbs": 1.2, "fat": 20.8},
+    "dahi": {"kcal": 61, "protein": 3.5, "carbs": 4.7, "fat": 3.3},
     "idli": {"kcal": 146, "protein": 4.5, "carbs": 30.4, "fat": 0.7},
 }
 
@@ -31,4 +33,4 @@ def get_nutrition_per_100g(food_label: str) -> Optional[NutritionPer100g]:
     """Look up per-100g nutrition for a food label, or None if unknown."""
     if not food_label:
         return None
-    return NUTRITION_DB.get(food_label.strip().lower())
+    return NUTRITION_DB.get(normalize_food_label(food_label))

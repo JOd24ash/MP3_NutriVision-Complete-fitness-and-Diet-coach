@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { api, getStoredUser, checkBackendStatus } from '../api/client';
-import { SAMPLE_PLATES } from '../api/mockData';
+import { api, getStoredUser, checkBackendStatus, setStoredUser } from '../api/client';
 
 const AppContext = createContext();
 
@@ -8,24 +7,11 @@ export const AppProvider = ({ children }) => {
   const [user, setUser] = useState(getStoredUser());
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isBackendOnline, setIsBackendOnline] = useState(false);
-  const [isLiveMode, setIsLiveMode] = useState(false); // Can be toggled
+  const [isLiveMode, setIsLiveMode] = useState(false);
   const [toasts, setToasts] = useState([]);
   
   // Current meal being inspected / logged
-  const [activeMeal, setActiveMeal] = useState({
-    meal_log_id: 'meal-init',
-    plate_image: SAMPLE_PLATES[0].image,
-    plate_name: SAMPLE_PLATES[0].name,
-    items: SAMPLE_PLATES[0].items,
-    total: {
-      calories: 740,
-      protein_g: 27.5,
-      carbs_g: 88.0,
-      fat_g: 23.5,
-    },
-    reference_object: 'credit_card',
-    reference_scale_cm: 8.56
-  });
+  const [activeMeal, setActiveMeal] = useState({ meal_log_id: null, plate_image: '', plate_name: '', items: [], total: { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 } });
 
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -56,11 +42,26 @@ export const AppProvider = ({ children }) => {
     try {
       const saved = await api.profile.update(user.id, updatedData);
       setUser(saved);
+      setStoredUser(saved);
       showToast('Medical profile updated successfully', 'success');
       return saved;
     } catch (err) {
       showToast('Failed to update profile: ' + err.message, 'danger');
     }
+  };
+
+  const authenticate = async (mode, values) => {
+    const result = mode === 'signup'
+      ? await api.auth.signup(values.name, values.email, values.password)
+      : await api.auth.login(values.email, values.password);
+    setUser(result.user);
+    return result;
+  };
+
+  const logout = () => {
+    api.auth.logout();
+    setUser(null);
+    setActiveMeal({ meal_log_id: null, plate_image: '', plate_name: '', items: [], total: { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 } });
   };
 
   // Recalculate totals whenever items in activeMeal are edited
@@ -84,6 +85,8 @@ export const AppProvider = ({ children }) => {
       value={{
         user,
         setUser,
+        authenticate,
+        logout,
         updateUserProfile,
         activeTab,
         setActiveTab,

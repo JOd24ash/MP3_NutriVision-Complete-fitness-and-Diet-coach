@@ -8,8 +8,13 @@ and portion estimation.
 Run with: uvicorn app.main:app --reload   (see SETUP.md)
 """
 
+import os
 from datetime import datetime
 from typing import List, Optional
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile, status
 from fastapi.security import OAuth2PasswordBearer
@@ -22,6 +27,7 @@ from .db.session import get_db, init_db
 from .guardrails.engine import check_meal, evaluate_meal
 from .guardrails.models import GuardrailCheckInput, GuardrailCheckResponse, MealItemRow, MedicalProfile as MedicalProfileSchema
 from .nutrition.calculator import compute_item_nutrition
+from .nutrition.database import NUTRITION_DB
 from .portion.estimator import estimate_meal_from_detections, estimate_meal_from_voice
 from .rag.chat import answer_chat
 from .rag.models import ChatRequest, ChatResponse
@@ -31,6 +37,7 @@ from .schemas import (
     LoginRequest,
     MealItemOut,
     MealItemPatchRequest,
+    MealItemCreateRequest,
     MealLogSummary,
     MealResponse,
     MealTotalOut,
@@ -38,6 +45,7 @@ from .schemas import (
     ProfileUpdateRequest,
     SignupRequest,
     TokenResponse,
+    UserResponse,
 )
 from .speech.nlp_parser import parse_transcript
 from .speech.transcriber import get_transcriber
@@ -47,9 +55,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="NutriVision API", version="0.1.0")
 
+allowed_origins = [origin.strip() for origin in os.environ.get("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if origin.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -61,6 +70,8 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{API_PREFIX}/auth/login")
 
 @app.on_event("startup")
 def on_startup() -> None:
+    if os.environ.get("ENV", "development").lower() == "production" and os.environ.get("JWT_SECRET_KEY", "dev-only-change-me") == "dev-only-change-me":
+        raise RuntimeError("JWT_SECRET_KEY must be set in production")
     init_db()
 
 
@@ -184,7 +195,7 @@ def signup(payload: SignupRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
 
-    return TokenResponse(access_token=create_access_token(user.id))
+    return TokenResponse(access_token=create_access_token(user.id), user=UserResponse(id=user.id, name=user.name, email=user.email))
 
 
 @app.post(f"{API_PREFIX}/auth/login", response_model=TokenResponse)
@@ -192,7 +203,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == payload.email).first()
     if user is None or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Incorrect email or password")
-    return TokenResponse(access_token=create_access_token(user.id))
+    return TokenResponse(access_token=create_access_token(user.id), user=UserResponse(id=user.id, name=user.name, email=user.email))
 
 
 # ------------------------------------------------------------- user/profile
@@ -202,7 +213,7 @@ def get_profile(user_id: str, db: Session = Depends(get_db), current_user: User 
     require_self(user_id, current_user)
     profile = db.query(MedicalProfile).filter(MedicalProfile.user_id == user_id).first()
     return ProfileResponse(
-        user_id=current_user.id,
+        id=current_user.id,
         name=current_user.name,
         email=current_user.email,
         allergies=(profile.allergies if profile else []) or [],
@@ -227,7 +238,7 @@ def update_profile(
     db.commit()
 
     return ProfileResponse(
-        user_id=current_user.id,
+        id=current_user.id,
         name=current_user.name,
         email=current_user.email,
         allergies=profile.allergies,
@@ -236,6 +247,11 @@ def update_profile(
 
 
 # ------------------------------------------------------------ meal logging
+
+@app.get(f"{API_PREFIX}/nutrition/foods")
+def search_foods(query: str = ""):
+    term = query.strip().lower()
+    return [{"food_label": label, **values} for label, values in NUTRITION_DB.items() if term in label][:20]
 
 @app.post(f"{API_PREFIX}/meals/photo", response_model=MealResponse)
 async def log_meal_photo(
@@ -327,6 +343,36 @@ def patch_meal_item(
     db.refresh(item)
 
     return row_to_out(item.id, row)
+
+
+@app.post(f"{API_PREFIX}/meals/{{meal_log_id}}/items", response_model=MealItemOut)
+def add_meal_item(
+    meal_log_id: str,
+    payload: MealItemCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    meal_log = db.get(MealLog, meal_log_id)
+    if meal_log is None:
+        raise HTTPException(status_code=404, detail="Meal log not found")
+    require_self(meal_log.user_id, current_user)
+    from .nutrition.models import FoodItemInput
+    [row] = evaluate_meal([compute_item_nutrition(FoodItemInput(food_label=payload.food_label, estimated_grams=payload.est_grams))], profile_to_schema(meal_log.user.medical_profile))
+    item = MealItem(meal_log_id=meal_log.id, food_label=row.food_label, confidence=None, est_grams=row.est_grams, calories=row.calories, protein_g=row.protein_g, carbs_g=row.carbs_g, fat_g=row.fat_g, guardrail_status=DBGuardrailStatus(row.guardrail_status), guardrail_reason=row.guardrail_reason)
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return row_to_out(item.id, row)
+
+
+@app.delete(f"{API_PREFIX}/meals/{{meal_log_id}}/items/{{item_id}}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_meal_item(meal_log_id: str, item_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    item = db.get(MealItem, item_id)
+    if item is None or item.meal_log_id != meal_log_id:
+        raise HTTPException(status_code=404, detail="Meal item not found")
+    require_self(item.meal_log.user_id, current_user)
+    db.delete(item)
+    db.commit()
 
 
 @app.post(f"{API_PREFIX}/meals/{{meal_log_id}}/confirm", response_model=MealResponse)

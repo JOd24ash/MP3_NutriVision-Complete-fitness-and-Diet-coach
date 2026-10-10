@@ -1,0 +1,14 @@
+"""Canonical food labels shared by every food-entry path."""
+
+import re
+
+ALIASES = {
+    "roti": "chapati", "whole_wheat_roti": "chapati", "wheat_roti": "chapati",
+    "steamed_idli": "idli", "dal_tadka": "dal", "dal_fry": "dal",
+    "curd": "dahi", "fresh_curd": "dahi", "yogurt": "dahi",
+}
+
+
+def normalize_food_label(label: str) -> str:
+    key = re.sub(r"[^a-z0-9]+", "_", (label or "").strip().lower()).strip("_")
+    return ALIASES.get(key, key)

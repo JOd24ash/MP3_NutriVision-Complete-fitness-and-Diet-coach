@@ -52,10 +52,10 @@ export const Navbar = () => {
           className={`topbar-status-pill ${isBackendOnline ? 'status-online' : 'status-demo'}`}
           title={isBackendOnline
             ? 'Connected to live FastAPI backend on :8000'
-            : 'Running in instant demo mode with simulated CV/RAG pipeline'}
+            : 'Demo mode (backend offline)'}
         >
           {isBackendOnline ? <Wifi size={13} /> : <WifiOff size={13} />}
-          <span>{isBackendOnline ? 'FastAPI Live' : 'Demo Engine'}</span>
+          <span>{isBackendOnline ? 'FastAPI Live' : 'Backend offline'}</span>
         </div>
 
         {/* AI Coach Button */}
