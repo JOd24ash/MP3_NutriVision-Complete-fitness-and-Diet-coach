@@ -9,12 +9,14 @@ import {
   Sparkles,
   LogOut,
   Calendar,
+  Apple,
   Bell
 } from 'lucide-react';
 
 const pageTitles = {
   dashboard: { label: 'Dashboard', icon: LayoutDashboard, desc: 'Your nutritional overview for today' },
   scan: { label: 'Plate Scanner', icon: Camera, desc: 'AI-powered multi-item meal detection' },
+  manual: { label: 'Add Food', icon: Apple, desc: 'Search foods manually' },
   voice: { label: 'Voice Logger', icon: Mic, desc: 'Log meals by speaking naturally' },
   history: { label: 'Meal History', icon: History, desc: 'Browse and review your past meals' },
   metrics: { label: 'Health Metrics', icon: Activity, desc: 'Track body stats and health trends' },
