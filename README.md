@@ -16,7 +16,7 @@ AI-driven nutrition assistant for multi-item Indian meals — with food detectio
 | Guardrails | Allergen / health rule engine |
 | RAG / Chat | ChromaDB + Anthropic Claude |
 | Speech | Whisper + meal parser |
-| Database | PostgreSQL + TimescaleDB (SQLite for dev) |
+| Database | SQLite by default; PostgreSQL optional |
 
 ---
 
@@ -98,7 +98,7 @@ uvicorn app.main:app --reload
 | `ANTHROPIC_API_KEY` | Anthropic API key for RAG/chat features |
 | `NUTRIVISION_LLM_MODEL` | LLM model name (default: `claude-sonnet-4-5`) |
 
-> **Note:** Vision (YOLO) and Speech (Whisper) features gracefully fall back to mock implementations if their dependencies or checkpoints are not configured.
+> Photos are processed locally by the server's YOLO model. Set `USE_MOCK_DETECTOR=true` only for explicit demo mode; otherwise install a local checkpoint.
 
 ---
 

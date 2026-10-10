@@ -3,24 +3,23 @@
 ## Prerequisites
 - Python 3.10+
 - FFmpeg on PATH (required to convert browser WebM/Ogg recordings for Whisper)
-- Node.js 18+ (for React Native/Flutter tooling as applicable)
-- PostgreSQL 15+ with TimescaleDB extension
-- Docker (recommended for ChromaDB + Postgres)
+- Node.js 18+
+- Docker (optional)
 
 ## Backend (FastAPI)
 ```bash
 cd backend
-python -m venv venv
-source venv/bin/activate
-pip install fastapi uvicorn sqlalchemy psycopg2-binary \
-  ultralytics torch torchvision \
-  langchain chromadb openai-whisper \
-  python-multipart pydantic
+python -m venv .venv
+# Windows: .venv\Scripts\activate
+# Linux/macOS: source .venv/bin/activate
+pip install -r requirements.txt
 
-uvicorn main:app --reload
+uvicorn app.main:app --reload
 ```
 
 ## Database
+
+SQLite is the default (`sqlite:///./nutrivision.db`) and needs no service. PostgreSQL is optional; TimescaleDB is not required.
 ```bash
 docker run -d --name nutrivision-pg \
   -e POSTGRES_PASSWORD=devpass \
@@ -49,20 +48,12 @@ cd backend/rag
 python ingest.py --source ./knowledge_base/icmr_guidelines/
 ```
 
-## Mobile App
-```bash
-cd mobile
-npm install
-npx react-native run-android   # or run-ios
-```
-
 ## Environment Variables (`.env`)
 ```
-DATABASE_URL=postgresql://postgres:devpass@localhost:5432/nutrivision
-CHROMA_HOST=localhost
-CHROMA_PORT=8000
+DATABASE_URL=sqlite:///./nutrivision.db
 WHISPER_MODEL=base
-LLM_API_KEY=<your key>
+YOLO_CHECKPOINT_PATH=/checkpoints/best.pt
+ANTHROPIC_API_KEY=<optional chat-only key>
 ```
 
 ## Suggested Repo-Level Scripts
