@@ -46,6 +46,7 @@ from .schemas import (
     SignupRequest,
     TokenResponse,
     UserResponse,
+    GoalIn,
 )
 from .speech.nlp_parser import parse_transcript
 from .speech.transcriber import get_transcriber
@@ -487,6 +488,27 @@ def add_health_metric(
 
 
 # ------------------------------------------------------------- guardrails
+
+@app.put(f"{API_PREFIX}/users/{{user_id}}/goals")
+def put_goals(user_id: str, payload: GoalIn, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    require_self(user_id, current_user)
+    from .db.models import FitnessGoal
+    from .fitness.calculator import ACTIVITY, targets
+    if payload.sex not in {"male", "female"} or payload.activity_level not in ACTIVITY or payload.goal not in {"lose", "maintain", "gain"} or payload.diet_preference not in {"veg", "non_veg", "eggetarian", "vegan"}: raise HTTPException(422, "Invalid goal profile")
+    goal = db.get(FitnessGoal, user_id) or FitnessGoal(user_id=user_id)
+    for key, value in payload.model_dump().items(): setattr(goal, key, value)
+    db.add(goal); db.commit()
+    return {**payload.model_dump(), **targets(**payload.model_dump(exclude={"diet_preference"}))}
+
+@app.get(f"{API_PREFIX}/users/{{user_id}}/goals")
+def get_goals(user_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    require_self(user_id, current_user)
+    from .db.models import FitnessGoal
+    from .fitness.calculator import targets
+    goal = db.get(FitnessGoal, user_id)
+    if not goal: raise HTTPException(404, "Set goals first")
+    values = {key: getattr(goal, key) for key in GoalIn.model_fields}
+    return {**values, **targets(**{key: value for key, value in values.items() if key != "diet_preference"})}
 
 @app.post(f"{API_PREFIX}/guardrails/check", response_model=GuardrailCheckResponse)
 def guardrails_check(

@@ -134,3 +134,19 @@ class NutritionReference(Base):
     carbs_per_100g = Column(Float, nullable=False)
     fat_per_100g = Column(Float, nullable=False)
     common_allergens = Column(JSON, default=list)
+
+
+class FitnessGoal(Base):
+    __tablename__ = "fitness_goals"
+    user_id = Column(String, ForeignKey("users.id"), primary_key=True)
+    age = Column(Float, nullable=False); sex = Column(String, nullable=False)
+    height_cm = Column(Float, nullable=False); weight_kg = Column(Float, nullable=False)
+    activity_level = Column(String, nullable=False); goal = Column(String, nullable=False); diet_preference = Column(String, nullable=False)
+
+
+class ActivityLog(Base):
+    __tablename__ = "activity_logs"
+    id = Column(String, primary_key=True, default=_uuid)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    activity_type = Column(String, nullable=False); duration_minutes = Column(Float, nullable=False); intensity = Column(String, nullable=False)
+    logged_at = Column(DateTime(timezone=True), server_default=func.now())

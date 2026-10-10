@@ -24,11 +24,12 @@ SYSTEM_PROMPT = (
     "provided below — if the context doesn't cover the question, say so "
     "instead of guessing. Take the USER FLAGS into account: they describe "
     "real allergy/condition concerns already detected for this user's "
-    "recent meal, and your advice must not contradict them."
+    "recent meal, and your advice must not contradict them. This is not medical advice."
 )
 
 # Swap for whichever Claude/LLM model + SDK this backend is configured to use.
-DEFAULT_MODEL = os.environ.get("NUTRIVISION_LLM_MODEL", "claude-sonnet-4-5")
+DEFAULT_MODEL = os.environ.get("NUTRIVISION_LLM_MODEL", "claude-haiku-4-5-20251001")
+MAX_GROUNDING_DISTANCE = float(os.environ.get("RAG_MAX_DISTANCE", "1.2"))
 
 
 def guardrail_flags_from_meal_items(rows: List[MealItemRow]) -> List[str]:
@@ -57,6 +58,8 @@ def build_prompt(message: str, chunks: List[RetrievedChunk], guardrail_flags: Li
 def generate_answer(prompt: str, model: str = DEFAULT_MODEL) -> str:
     """Calls the configured LLM. Requires the `anthropic` package and
     ANTHROPIC_API_KEY (or swap this out for another provider's SDK)."""
+    if os.environ.get("LLM_PROVIDER", "none") == "none":
+        return ""
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         raise RuntimeError(
@@ -82,9 +85,13 @@ def answer_chat(
 ) -> ChatResponse:
     chunks = retrieve(request.message, k=k)
     guardrail_flags = guardrail_flags_from_meal_items(meal_items) if meal_items else []
+    if not chunks or (chunks[0].distance is not None and chunks[0].distance > MAX_GROUNDING_DISTANCE):
+        return ChatResponse(answer="I don't have enough verified information to answer that.", sources=[], guardrail_flags=guardrail_flags)
     prompt = build_prompt(request.message, chunks, guardrail_flags)
 
     answer = generate_answer(prompt)
+    if not answer:
+        answer = "\n\n".join(chunk.text for chunk in chunks)
 
     sources = [SourceCitation(title=c.source_title, chunk_ref=c.chunk_id) for c in chunks]
     return ChatResponse(answer=answer, sources=sources, guardrail_flags=guardrail_flags)
