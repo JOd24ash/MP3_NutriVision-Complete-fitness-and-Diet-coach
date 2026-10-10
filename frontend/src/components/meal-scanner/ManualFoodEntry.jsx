@@ -1,562 +1,822 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
-  Search, Plus, Minus, X, Check,
-  Utensils, Sparkles, Coffee, Sun, Moon, Star,
-  Camera, Mic, Apple
+  Search, Plus, Check, Sparkles, Camera, Mic,
+  Flame, Zap, AlertCircle, ChevronRight, Lightbulb,
+  Utensils, PlusCircle
 } from 'lucide-react';
 
-/* ── Food catalogue ───────────────────────────────────────── */
+/* ── Food Catalogue ───────────────────────────────────────── */
 const CATALOGUE = [
-  // Indian
-  { id: 'roti',         name: 'Roti (whole wheat)', cat: 'Indian',    emoji: '🫓', serving: '1 piece (30g)',     kcal: 96,  p: 3,  c: 18, f: 1  },
-  { id: 'rice',         name: 'Rice (cooked)',       cat: 'Indian',    emoji: '🍚', serving: '1 cup (150g)',      kcal: 206, p: 4,  c: 45, f: 0  },
-  { id: 'dal',          name: 'Dal (Lentils)',        cat: 'Indian',    emoji: '🫕', serving: '1 bowl (200g)',     kcal: 232, p: 18, c: 40, f: 1  },
-  { id: 'paneer',       name: 'Paneer',               cat: 'Dairy',     emoji: '🧀', serving: '100g',             kcal: 265, p: 18, c: 1,  f: 21 },
-  { id: 'poha',         name: 'Poha',                 cat: 'Indian',    emoji: '🍽️', serving: '1 plate (200g)',   kcal: 220, p: 5,  c: 46, f: 1  },
-  { id: 'idli',         name: 'Idli',                 cat: 'Indian',    emoji: '🫔', serving: '2 idlis (120g)',   kcal: 70,  p: 2,  c: 14, f: 0  },
-  { id: 'dosa',         name: 'Plain Dosa',           cat: 'Indian',    emoji: '🥘', serving: '1 dosa (100g)',    kcal: 133, p: 4,  c: 25, f: 3  },
-  { id: 'sambar',       name: 'Sambar',               cat: 'Indian',    emoji: '🍲', serving: '1 bowl (200g)',    kcal: 80,  p: 4,  c: 12, f: 2  },
-  // Protein
-  { id: 'egg',          name: 'Boiled Egg',           cat: 'Protein',   emoji: '🥚', serving: '1 piece (50g)',    kcal: 78,  p: 7,  c: 1,  f: 6  },
-  { id: 'chicken',      name: 'Grilled Chicken Breast', cat: 'Protein', emoji: '🍗', serving: '1 piece (150g)',   kcal: 248, p: 47, c: 0,  f: 6  },
-  { id: 'tuna',         name: 'Canned Tuna',          cat: 'Protein',   emoji: '🐟', serving: '1 can (85g)',      kcal: 99,  p: 22, c: 0,  f: 1  },
-  { id: 'greek-yogurt', name: 'Greek Yogurt',         cat: 'Protein',   emoji: '🫙', serving: '1 cup (170g)',     kcal: 100, p: 17, c: 6,  f: 1  },
-  { id: 'whey',         name: 'Whey Protein',         cat: 'Protein',   emoji: '💪', serving: '1 scoop (30g)',    kcal: 111, p: 24, c: 2,  f: 1  },
-  // Breakfast
-  { id: 'oatmeal',      name: 'Oatmeal',              cat: 'Breakfast', emoji: '🥣', serving: '1 bowl (250g)',    kcal: 170, p: 6,  c: 30, f: 4  },
-  { id: 'bread',        name: 'Whole Wheat Bread',    cat: 'Breakfast', emoji: '🍞', serving: '2 slices (60g)',   kcal: 148, p: 5,  c: 25, f: 2  },
-  { id: 'banana',       name: 'Banana',               cat: 'Fruits',    emoji: '🍌', serving: '1 medium (100g)', kcal: 89,  p: 1,  c: 23, f: 0  },
-  { id: 'milk',         name: 'Full Cream Milk',      cat: 'Breakfast', emoji: '🥛', serving: '1 glass (240ml)', kcal: 146, p: 8,  c: 12, f: 8  },
-  { id: 'curd',         name: 'Curd',                 cat: 'Dairy',     emoji: '🍶', serving: '1 cup (200g)',     kcal: 122, p: 8,  c: 11, f: 4  },
-  // Fruits
-  { id: 'apple',        name: 'Apple',                cat: 'Fruits',    emoji: '🍎', serving: '1 medium (182g)', kcal: 95,  p: 0,  c: 25, f: 0  },
-  { id: 'orange',       name: 'Orange',               cat: 'Fruits',    emoji: '🍊', serving: '1 medium (131g)', kcal: 62,  p: 1,  c: 15, f: 0  },
-  // Healthy / Keto
-  { id: 'almonds',      name: 'Almonds',              cat: 'Healthy',   emoji: '🥜', serving: '1 handful (28g)', kcal: 162, p: 6,  c: 6,  f: 14 },
-  { id: 'avocado',      name: 'Avocado',              cat: 'Keto',      emoji: '🥑', serving: '½ fruit (100g)',  kcal: 160, p: 2,  c: 9,  f: 15 },
-  { id: 'broccoli',     name: 'Broccoli',             cat: 'Healthy',   emoji: '🥦', serving: '1 cup (91g)',     kcal: 31,  p: 3,  c: 6,  f: 0  },
-  { id: 'sweet-potato', name: 'Sweet Potato',         cat: 'Healthy',   emoji: '🍠', serving: '1 medium (130g)', kcal: 112, p: 2,  c: 26, f: 0  },
-  { id: 'pb',           name: 'Peanut Butter',        cat: 'Keto',      emoji: '🥜', serving: '2 tbsp (32g)',    kcal: 188, p: 8,  c: 6,  f: 16 },
+  // 8 Popular Indian Foods (matched exactly to screenshot)
+  {
+    id: 'roti',
+    name: 'Roti (whole wheat)',
+    categories: ['Indian', 'Lunch', 'Dinner', 'Breakfast'],
+    serving: '1 piece (30g)',
+    kcal: 96, p: 3, c: 18, f: 1,
+    image: 'https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?w=300&auto=format&fit=crop&q=80',
+    isPopular: true
+  },
+  {
+    id: 'rice',
+    name: 'Rice (cooked)',
+    categories: ['Indian', 'Lunch', 'Dinner'],
+    serving: '1 cup (150g)',
+    kcal: 206, p: 4, c: 45, f: 0,
+    image: 'https://images.unsplash.com/photo-1516684732162-798a0062be99?w=300&auto=format&fit=crop&q=80',
+    isPopular: true
+  },
+  {
+    id: 'dal',
+    name: 'Dal (yellow)',
+    categories: ['Indian', 'Lunch', 'Dinner'],
+    serving: '1 bowl (150g)',
+    kcal: 120, p: 9, c: 20, f: 2,
+    image: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=300&auto=format&fit=crop&q=80',
+    isPopular: true
+  },
+  {
+    id: 'paneer',
+    name: 'Paneer',
+    categories: ['Indian', 'Lunch', 'Dinner', 'Snacks'],
+    serving: '100g',
+    kcal: 265, p: 18, c: 2, f: 21,
+    image: 'https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=300&auto=format&fit=crop&q=80',
+    isPopular: true
+  },
+  {
+    id: 'chicken',
+    name: 'Chicken Breast',
+    categories: ['Lunch', 'Dinner'],
+    serving: '100g',
+    kcal: 165, p: 31, c: 0, f: 3,
+    image: 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=300&auto=format&fit=crop&q=80',
+    isPopular: true
+  },
+  {
+    id: 'egg',
+    name: 'Boiled Egg',
+    categories: ['Breakfast', 'Snacks'],
+    serving: '1 piece (50g)',
+    kcal: 78, p: 6, c: 1, f: 5,
+    image: 'https://images.unsplash.com/photo-1582722872445-44dc5f7e3c8f?w=300&auto=format&fit=crop&q=80',
+    isPopular: true
+  },
+  {
+    id: 'banana',
+    name: 'Banana',
+    categories: ['Breakfast', 'Snacks'],
+    serving: '1 medium (100g)',
+    kcal: 89, p: 1, c: 23, f: 0,
+    image: 'https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=300&auto=format&fit=crop&q=80',
+    isPopular: true
+  },
+  {
+    id: 'curd',
+    name: 'Curd',
+    categories: ['Breakfast', 'Lunch', 'Beverages', 'Dinner'],
+    serving: '1 cup (200g)',
+    kcal: 122, p: 8, c: 11, f: 4,
+    image: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?w=300&auto=format&fit=crop&q=80',
+    isPopular: true
+  },
+  // Additional catalogue items for category tabs & View All
+  {
+    id: 'idli',
+    name: 'Idli',
+    categories: ['Breakfast', 'Indian'],
+    serving: '2 idlis (120g)',
+    kcal: 70, p: 2, c: 14, f: 0,
+    image: 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?w=300&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'dosa',
+    name: 'Plain Dosa',
+    categories: ['Breakfast', 'Indian'],
+    serving: '1 dosa (100g)',
+    kcal: 133, p: 4, c: 25, f: 3,
+    image: 'https://images.unsplash.com/photo-1668236543090-82eba5ee5976?w=300&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'poha',
+    name: 'Poha',
+    categories: ['Breakfast', 'Indian'],
+    serving: '1 plate (200g)',
+    kcal: 220, p: 5, c: 46, f: 1,
+    image: 'https://images.unsplash.com/photo-1546833998-877b37c2e5c6?w=300&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'oatmeal',
+    name: 'Oatmeal',
+    categories: ['Breakfast'],
+    serving: '1 bowl (250g)',
+    kcal: 170, p: 6, c: 30, f: 4,
+    image: 'https://images.unsplash.com/photo-1584776296944-ab6fb57b0bdd?w=300&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'rajma',
+    name: 'Rajma Curry',
+    categories: ['Lunch', 'Dinner', 'Indian'],
+    serving: '1 bowl (200g)',
+    kcal: 240, p: 14, c: 38, f: 1,
+    image: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=300&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'chole',
+    name: 'Chole Masala',
+    categories: ['Lunch', 'Dinner', 'Indian'],
+    serving: '1 bowl (200g)',
+    kcal: 260, p: 12, c: 36, f: 6,
+    image: 'https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=300&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'palak-paneer',
+    name: 'Palak Paneer',
+    categories: ['Lunch', 'Dinner', 'Indian'],
+    serving: '1 bowl (200g)',
+    kcal: 280, p: 16, c: 8, f: 20,
+    image: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?w=300&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'almonds',
+    name: 'Almonds',
+    categories: ['Snacks'],
+    serving: '1 handful (28g)',
+    kcal: 162, p: 6, c: 6, f: 14,
+    image: 'https://images.unsplash.com/photo-1508061257972-3a5e808b2533?w=300&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'apple',
+    name: 'Fresh Apple',
+    categories: ['Snacks', 'Breakfast'],
+    serving: '1 medium (182g)',
+    kcal: 95, p: 0, c: 25, f: 0,
+    image: 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?w=300&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'masala-chai',
+    name: 'Masala Chai',
+    categories: ['Beverages'],
+    serving: '1 cup (150ml)',
+    kcal: 65, p: 2, c: 9, f: 2,
+    image: 'https://images.unsplash.com/photo-1576092768241-dec231879fc3?w=300&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'filter-coffee',
+    name: 'Filter Coffee',
+    categories: ['Beverages'],
+    serving: '1 cup (150ml)',
+    kcal: 80, p: 3, c: 10, f: 3,
+    image: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=300&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'sweet-lassi',
+    name: 'Sweet Lassi',
+    categories: ['Beverages'],
+    serving: '1 glass (250ml)',
+    kcal: 185, p: 6, c: 28, f: 5,
+    image: 'https://images.unsplash.com/photo-1553530666-ba11a7da3888?w=300&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'chaas',
+    name: 'Buttermilk (Chaas)',
+    categories: ['Beverages'],
+    serving: '1 glass (200ml)',
+    kcal: 45, p: 2, c: 4, f: 2,
+    image: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=300&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'protein-shake',
+    name: 'Whey Protein Shake',
+    categories: ['Beverages', 'Snacks'],
+    serving: '1 scoop (300ml)',
+    kcal: 140, p: 25, c: 3, f: 2,
+    image: 'https://images.unsplash.com/photo-1579722821273-0f6c7d44362f?w=300&auto=format&fit=crop&q=80'
+  }
 ];
 
-const MEAL_TYPES = [
-  { id: 'breakfast', label: 'Breakfast', icon: Coffee,  color: '#f59e0b', activeBg: '#fffbeb', activeBorder: '#f59e0b' },
-  { id: 'lunch',     label: 'Lunch',     icon: Sun,     color: '#6b7280', activeBg: '#f9fafb', activeBorder: '#6b7280' },
-  { id: 'dinner',    label: 'Dinner',    icon: Moon,    color: '#6b7280', activeBg: '#f9fafb', activeBorder: '#6b7280' },
-  { id: 'snacks',    label: 'Snacks',    icon: Star,    color: '#6b7280', activeBg: '#f9fafb', activeBorder: '#6b7280' },
-];
-
-const TAGS = ['All', 'Indian', 'Protein', 'Breakfast', 'Healthy', 'Keto', 'Fruits', 'Dairy'];
+const CATEGORY_TABS = ['All', 'Breakfast', 'Lunch', 'Dinner', 'Snacks', 'Beverages'];
 
 export const ManualFoodEntry = () => {
-  const { showToast, setActiveTab, setIsChatOpen } = useApp();
-  const [query, setQuery]           = useState('');
-  const [activeTag, setActiveTag]   = useState('All');
-  const [mealType, setMealType]     = useState('breakfast');
-  const [quantities, setQuantities] = useState({});
-  const [loggedItems, setLoggedItems] = useState([]);
+  const { showToast, setActiveTab, setIsChatOpen, activeMeal, setActiveMeal, updateActiveMealItems } = useApp();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeCategory, setActiveCategory] = useState('All');
+  const [showAll, setShowAll] = useState(false);
+  const [addedIds, setAddedIds] = useState(new Set());
 
-  /* filter */
-  const filtered = CATALOGUE.filter(f => {
-    const q = query.toLowerCase();
-    const matchQ = !q || f.name.toLowerCase().includes(q) || f.cat.toLowerCase().includes(q);
-    const matchT = activeTag === 'All' || f.cat === activeTag;
-    return matchQ && matchT;
+  // Filter foods based on query, tab, and showAll
+  const filteredFoods = CATALOGUE.filter(item => {
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matchesName = item.name.toLowerCase().includes(q);
+      const matchesCat = item.categories.some(c => c.toLowerCase().includes(q));
+      return matchesName || matchesCat;
+    }
+    if (activeCategory !== 'All') {
+      return item.categories.includes(activeCategory);
+    }
+    if (!showAll) {
+      return item.isPopular;
+    }
+    return true;
   });
 
-  const sectionTitle = activeTag === 'All' ? 'All Foods' : `${activeTag} foods`;
+  const handleAddFood = (food) => {
+    setAddedIds(prev => new Set(prev).add(food.id));
+    setTimeout(() => {
+      setAddedIds(prev => {
+        const next = new Set(prev);
+        next.delete(food.id);
+        return next;
+      });
+    }, 1800);
 
-  /* qty helpers */
-  const getQty = id => quantities[id] ?? 1;
-  const setQty = (id, v) => {
-    const n = Math.max(0.5, Math.min(10, parseFloat(v) || 1));
-    setQuantities(p => ({ ...p, [id]: n }));
-  };
-  const incQty = id => setQty(id, getQty(id) + 0.5);
-  const decQty = id => setQty(id, getQty(id) - 0.5);
-
-  /* add to log */
-  const addFood = (food) => {
-    const qty  = getQty(food.id);
-    const item = {
-      ...food,
-      qty,
-      mealType,
-      mealLabel: MEAL_TYPES.find(m => m.id === mealType)?.label ?? 'Breakfast',
-      logKcal: Math.round(food.kcal * qty),
-      logP:    +(food.p * qty).toFixed(1),
-      logC:    +(food.c * qty).toFixed(1),
-      logF:    +(food.f * qty).toFixed(1),
-      uid: `${food.id}-${Date.now()}`,
+    const newItem = {
+      id: food.id + '-' + Date.now(),
+      food_name: food.name,
+      portion: food.serving,
+      calories: food.kcal,
+      protein_g: food.p,
+      carbs_g: food.c,
+      fat_g: food.f,
+      image_url: food.image
     };
-    setLoggedItems(prev => [item, ...prev]);
-    if (showToast) showToast(`${food.name} added to ${item.mealLabel}!`, 'success');
+
+    if (updateActiveMealItems && activeMeal) {
+      updateActiveMealItems([...(activeMeal.items || []), newItem]);
+    } else if (setActiveMeal) {
+      setActiveMeal(prev => ({
+        ...prev,
+        items: [...(prev?.items || []), newItem]
+      }));
+    }
+
+    showToast(`${food.name} added to your log!`, 'success');
   };
-
-  const removeItem = uid => setLoggedItems(prev => prev.filter(i => i.uid !== uid));
-
-  /* totals */
-  const total = loggedItems.reduce((a, i) => ({
-    kcal: a.kcal + i.logKcal, p: a.p + i.logP, c: a.c + i.logC, f: a.f + i.logF
-  }), { kcal: 0, p: 0, c: 0, f: 0 });
 
   return (
-    <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+    <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* ── Top Header Banner ─────────────────────────────────── */}
+      <div style={{
+        background: '#fff',
+        borderRadius: 16,
+        border: '1px solid #e5e7eb',
+        padding: '24px 28px',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{
+            width: 46,
+            height: 46,
+            borderRadius: 12,
+            background: '#10b981',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#fff',
+            flexShrink: 0
+          }}>
+            <Utensils size={24} strokeWidth={2.2} />
+          </div>
+          <div>
+            <h1 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800, color: '#111827', letterSpacing: '-0.02em' }}>
+              Add food manually
+            </h1>
+            <p style={{ margin: '3px 0 0', fontSize: '0.85rem', color: '#6b7280' }}>
+              Search the local Indian food catalogue, choose a serving, then review and confirm the server-calculated meal.
+            </p>
+          </div>
+        </div>
 
-      {/* ══════════════════════ LEFT COLUMN ══════════════════════ */}
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {/* Search Bar */}
+        <div style={{ display: 'flex', gap: 12, marginTop: 20, alignItems: 'center' }}>
+          <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
+            <Search size={18} color="#9ca3af" style={{ position: 'absolute', left: 14, pointerEvents: 'none' }} />
+            <input
+              type="text"
+              placeholder="Search roti, chawal, dal, paneer..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '11px 16px 11px 42px',
+                borderRadius: 10,
+                border: '1px solid #e2e8f0',
+                fontSize: '0.9rem',
+                outline: 'none',
+                background: '#fff',
+                color: '#1e293b',
+                boxSizing: 'border-box'
+              }}
+            />
+          </div>
+          <button
+            onClick={() => {}}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '11px 24px',
+              borderRadius: 10,
+              background: '#10b981',
+              color: '#fff',
+              fontWeight: 600,
+              fontSize: '0.9rem',
+              border: 'none',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              boxShadow: '0 2px 4px rgba(16,185,129,0.2)',
+              transition: 'background 0.15s ease'
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = '#059669'}
+            onMouseLeave={e => e.currentTarget.style.background = '#10b981'}
+          >
+            <Search size={16} strokeWidth={2.4} />
+            Search
+          </button>
+        </div>
+      </div>
 
-        {/* Log to meal */}
+      {/* ── Main Two-Column Layout ───────────────────────────── */}
+      <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+        {/* Left Column: Food Grid Card */}
         <div style={{
-          background: '#fff', border: '1px solid #e5e7eb',
-          borderRadius: 16, padding: '16px 18px'
+          flex: 1,
+          minWidth: 0,
+          background: '#fff',
+          borderRadius: 16,
+          border: '1px solid #e5e7eb',
+          padding: '22px 24px',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
         }}>
-          <p style={{ margin: '0 0 12px', fontSize: '0.82rem', fontWeight: 600, color: '#374151' }}>
-            Log to meal
-          </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-            {MEAL_TYPES.map(m => {
-              const Icon = m.icon;
-              const active = mealType === m.id;
+          {/* Header Row */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Flame size={20} color="#10b981" />
+              <h2 style={{ margin: 0, fontSize: '1.08rem', fontWeight: 800, color: '#111827' }}>
+                Popular Indian Foods
+              </h2>
+            </div>
+            <button
+              onClick={() => setShowAll(!showAll)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#6b7280',
+                fontSize: '0.84rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4
+              }}
+              onMouseEnter={e => e.currentTarget.style.color = '#10b981'}
+              onMouseLeave={e => e.currentTarget.style.color = '#6b7280'}
+            >
+              {showAll ? 'Show Popular ←' : 'View All →'}
+            </button>
+          </div>
+
+          {/* Category Tabs */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '18px 0 22px' }}>
+            {CATEGORY_TABS.map(tab => {
+              const isActive = activeCategory === tab;
               return (
                 <button
-                  key={m.id}
-                  onClick={() => setMealType(m.id)}
+                  key={tab}
+                  onClick={() => {
+                    setActiveCategory(tab);
+                    if (tab !== 'All') setShowAll(true);
+                  }}
                   style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center',
-                    gap: 8, padding: '14px 8px', borderRadius: 12, border: 'none',
-                    cursor: 'pointer', fontFamily: 'inherit',
-                    background: active ? m.activeBg : '#f9fafb',
-                    outline: active ? `2px solid ${m.activeBorder}` : '2px solid transparent',
+                    padding: '6px 16px',
+                    borderRadius: 20,
+                    fontSize: '0.82rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    border: isActive ? '1px solid #10b981' : '1px solid #e2e8f0',
+                    background: isActive ? '#10b981' : '#fff',
+                    color: isActive ? '#fff' : '#4b5563',
                     transition: 'all 0.15s ease'
                   }}
                 >
-                  <div style={{
-                    width: 40, height: 40, borderRadius: 10,
-                    background: active ? m.color : '#e5e7eb',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: '#fff', transition: 'all 0.15s ease'
-                  }}>
-                    <Icon size={18} />
-                  </div>
-                  <span style={{
-                    fontSize: '0.8rem', fontWeight: 600,
-                    color: active ? m.color : '#6b7280'
-                  }}>
-                    {m.label}
-                  </span>
+                  {tab}
                 </button>
               );
             })}
           </div>
-        </div>
 
-        {/* Search bar */}
-        <div style={{ position: 'relative' }}>
-          <Search size={16} style={{
-            position: 'absolute', left: 14, top: '50%',
-            transform: 'translateY(-50%)', color: '#9ca3af', pointerEvents: 'none'
-          }} />
-          <input
-            type="text"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder="Search roti, rice, chicken, oats..."
-            style={{
-              width: '100%', padding: '12px 38px 12px 40px',
-              borderRadius: 12, border: '1px solid #e5e7eb',
-              background: '#f9fafb', fontSize: '0.9rem',
-              fontFamily: 'inherit', color: '#18181b',
-              outline: 'none', transition: 'all 0.15s ease'
-            }}
-            onFocus={e => { e.target.style.background = '#fff'; e.target.style.borderColor = '#10b981'; }}
-            onBlur={e => { e.target.style.background = '#f9fafb'; e.target.style.borderColor = '#e5e7eb'; }}
-          />
-          {query && (
-            <button
-              onClick={() => setQuery('')}
-              style={{
-                position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-                background: '#e5e7eb', border: 'none', borderRadius: '50%',
-                width: 22, height: 22, display: 'flex', alignItems: 'center',
-                justifyContent: 'center', cursor: 'pointer', color: '#6b7280'
-              }}
-            >
-              <X size={12} />
-            </button>
-          )}
-        </div>
-
-        {/* Category pills */}
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {TAGS.map(tag => {
-            const active = activeTag === tag;
-            return (
-              <button
-                key={tag}
-                onClick={() => setActiveTag(tag)}
-                style={{
-                  padding: '5px 14px', borderRadius: 20, border: 'none',
-                  cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600,
-                  fontFamily: 'inherit',
-                  background: active ? '#10b981' : 'transparent',
-                  color: active ? '#fff' : '#374151',
-                  outline: active ? 'none' : '1.5px solid #e5e7eb',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                {tag}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Food list */}
-        <div style={{
-          background: '#fff', border: '1px solid #e5e7eb',
-          borderRadius: 16, overflow: 'hidden'
-        }}>
-          {/* Section header */}
+          {/* 4-Column Food Cards Grid */}
           <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '12px 18px 10px',
-            borderBottom: '1px solid #f3f4f6'
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, 1fr)',
+            gap: 14
           }}>
-            <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#111827' }}>
-              {sectionTitle}
-            </span>
-            <span style={{
-              fontSize: '0.75rem', fontWeight: 600, color: '#6b7280',
-              background: '#f3f4f6', padding: '2px 8px', borderRadius: 6
-            }}>
-              {filtered.length} items
-            </span>
-          </div>
-
-          {/* Food rows */}
-          {filtered.length === 0 ? (
-            <div style={{ padding: '32px 18px', textAlign: 'center', color: '#9ca3af' }}>
-              <div style={{ fontSize: '2rem', marginBottom: 8 }}>🔍</div>
-              <p style={{ margin: 0, fontSize: '0.88rem' }}>No foods found. Try a different search.</p>
-            </div>
-          ) : (
-            <div>
-              {filtered.map((food, idx) => {
-                const qty = getQty(food.id);
-                const dispKcal = Math.round(food.kcal * qty);
-                const dispP    = +(food.p * qty).toFixed(1);
-                const dispC    = +(food.c * qty).toFixed(1);
-                const dispF    = +(food.f * qty).toFixed(1);
-                const isLast   = idx === filtered.length - 1;
-
-                return (
-                  <div
-                    key={food.id}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 12,
-                      padding: '12px 18px',
-                      borderBottom: isLast ? 'none' : '1px solid #f3f4f6'
-                    }}
-                  >
-                    {/* Emoji icon */}
-                    <div style={{
-                      width: 36, height: 36, borderRadius: 8, flexShrink: 0,
-                      background: '#f3f4f6',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: '18px'
-                    }}>
-                      {food.emoji}
-                    </div>
-
-                    {/* Name + serving + macros */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#111827' }}>
-                          {food.name}
-                        </span>
-                        <span style={{
-                          fontSize: '0.7rem', fontWeight: 600, padding: '1px 7px',
-                          borderRadius: 6, background: '#f3f4f6', color: '#6b7280'
-                        }}>
-                          {food.cat}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: '0.76rem', color: '#9ca3af', marginTop: 2 }}>
-                        {food.serving}
-                      </div>
-                      <div style={{ fontSize: '0.78rem', marginTop: 2 }}>
-                        <span style={{ color: '#f59e0b', fontWeight: 700 }}>{dispKcal} kcal</span>
-                        <span style={{ color: '#9ca3af' }}>
-                          {' '}· P {dispP}g · C {dispC}g · F {dispF}g
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Qty stepper */}
-                    <div style={{
-                      display: 'flex', alignItems: 'center', gap: 0,
-                      border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden',
-                      flexShrink: 0
-                    }}>
-                      <button
-                        onClick={() => decQty(food.id)}
-                        style={{
-                          width: 30, height: 32, border: 'none', background: '#f9fafb',
-                          cursor: 'pointer', display: 'flex', alignItems: 'center',
-                          justifyContent: 'center', color: '#374151', fontSize: '16px',
-                          fontWeight: 700
-                        }}
-                      >
-                        <Minus size={12} />
-                      </button>
-                      <div style={{
-                        width: 32, height: 32, display: 'flex', alignItems: 'center',
-                        justifyContent: 'center', fontSize: '0.84rem', fontWeight: 700,
-                        color: '#111827', background: '#fff', borderLeft: '1px solid #e5e7eb',
-                        borderRight: '1px solid #e5e7eb'
-                      }}>
-                        {qty % 1 === 0 ? qty : qty.toFixed(1)}
-                      </div>
-                      <button
-                        onClick={() => incQty(food.id)}
-                        style={{
-                          width: 30, height: 32, border: 'none', background: '#f9fafb',
-                          cursor: 'pointer', display: 'flex', alignItems: 'center',
-                          justifyContent: 'center', color: '#374151', fontSize: '16px',
-                          fontWeight: 700
-                        }}
-                      >
-                        <Plus size={12} />
-                      </button>
-                    </div>
-
-                    {/* Add button */}
-                    <button
-                      onClick={() => addFood(food)}
+            {filteredFoods.map(food => {
+              const isAdded = addedIds.has(food.id);
+              return (
+                <div
+                  key={food.id}
+                  style={{
+                    background: '#fff',
+                    border: '1px solid #eef2f6',
+                    borderRadius: 14,
+                    padding: '10px 10px 12px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    position: 'relative',
+                    transition: 'all 0.2s ease',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.borderColor = '#cbd5e1';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.06)';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.borderColor = '#eef2f6';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.02)';
+                  }}
+                >
+                  {/* Image container with floating + button */}
+                  <div style={{
+                    width: '100%',
+                    height: 105,
+                    borderRadius: 10,
+                    background: '#f8fafc',
+                    overflow: 'hidden',
+                    position: 'relative',
+                    marginBottom: 10,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <img
+                      src={food.image}
+                      alt={food.name}
                       style={{
-                        display: 'flex', alignItems: 'center', gap: 5,
-                        padding: '7px 16px', borderRadius: 8, border: 'none',
-                        background: '#10b981', color: '#fff',
-                        fontWeight: 700, fontSize: '0.82rem',
-                        cursor: 'pointer', fontFamily: 'inherit',
-                        transition: 'all 0.15s ease', flexShrink: 0,
-                        whiteSpace: 'nowrap'
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover'
                       }}
-                      onMouseEnter={e => e.currentTarget.style.background = '#059669'}
-                      onMouseLeave={e => e.currentTarget.style.background = '#10b981'}
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                      }}
+                    />
+
+                    {/* Green + / Check action button */}
+                    <button
+                      onClick={() => handleAddFood(food)}
+                      title="Add to log"
+                      style={{
+                        position: 'absolute',
+                        top: 6,
+                        right: 6,
+                        width: 26,
+                        height: 26,
+                        borderRadius: '50%',
+                        background: isAdded ? '#059669' : '#10b981',
+                        color: '#fff',
+                        border: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 6px rgba(16,185,129,0.3)',
+                        transition: 'transform 0.15s ease, background 0.15s ease'
+                      }}
+                      onMouseDown={e => e.currentTarget.style.transform = 'scale(0.92)'}
+                      onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
                     >
-                      <Plus size={13} />
-                      <span>Add</span>
+                      {isAdded ? (
+                        <Check size={14} strokeWidth={3} />
+                      ) : (
+                        <Plus size={16} strokeWidth={2.5} />
+                      )}
                     </button>
                   </div>
-                );
-              })}
+
+                  {/* Food details */}
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    <div style={{
+                      fontSize: '0.86rem',
+                      fontWeight: 700,
+                      color: '#111827',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis'
+                    }}>
+                      {food.name}
+                    </div>
+
+                    <div style={{ fontSize: '0.76rem', color: '#6b7280', marginTop: 2 }}>
+                      {food.serving}
+                    </div>
+
+                    <div style={{
+                      fontSize: '0.71rem',
+                      color: '#9ca3af',
+                      marginTop: 6,
+                      fontWeight: 500,
+                      letterSpacing: '-0.01em'
+                    }}>
+                      {food.kcal} kcal | P {food.p}g | C {food.c}g | F {food.f}g
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {filteredFoods.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '40px 20px', color: '#9ca3af', fontSize: '0.9rem' }}>
+              No foods match your search. Try another keyword or scan using the camera!
             </div>
           )}
-        </div>
 
-        {/* Bottom tip */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          padding: '10px 14px', borderRadius: 10,
-          background: '#fffbeb', border: '1px solid #fde68a',
-          fontSize: '0.78rem', color: '#92400e'
-        }}>
-          <span style={{ fontSize: '16px' }}>💡</span>
-          <span>
-            <strong>Tip:</strong> Use the{' '}
-            <button
-              onClick={() => setActiveTab('scan')}
-              style={{ background: 'none', border: 'none', color: '#d97706', fontWeight: 700, cursor: 'pointer', padding: 0, fontFamily: 'inherit', fontSize: 'inherit' }}
-            >
-              Plate Scanner
-            </button>{' '}for instant detection or the{' '}
-            <button
-              onClick={() => setActiveTab('voice')}
-              style={{ background: 'none', border: 'none', color: '#d97706', fontWeight: 700, cursor: 'pointer', padding: 0, fontFamily: 'inherit', fontSize: 'inherit' }}
-            >
-              Voice Logger
-            </button>{' '}to log hands-free.
-          </span>
-        </div>
-      </div>
-
-      {/* ══════════════════════ RIGHT SIDEBAR ══════════════════════ */}
-      <div style={{ width: 300, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-        {/* Food Log */}
-        <div style={{
-          background: '#fff', border: '1px solid #e5e7eb',
-          borderRadius: 16, overflow: 'hidden'
-        }}>
-          {/* Header */}
+          {/* Yellow Tip Bar */}
           <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '14px 16px', borderBottom: '1px solid #f3f4f6'
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            marginTop: 24,
+            paddingTop: 16,
+            borderTop: '1px solid #f1f5f9',
+            fontSize: '0.79rem',
+            color: '#64748b'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-              <Utensils size={16} style={{ color: '#374151' }} />
-              <span style={{ fontSize: '0.92rem', fontWeight: 700, color: '#111827' }}>Food Log</span>
-            </div>
-            <span style={{
-              fontSize: '0.72rem', fontWeight: 700, color: '#10b981',
-              background: '#f0fdf4', padding: '2px 8px', borderRadius: 6
-            }}>
-              {loggedItems.length} items
+            <Lightbulb size={16} color="#eab308" style={{ flexShrink: 0 }} />
+            <span>
+              Tip: Use the{' '}
+              <strong
+                onClick={() => setActiveTab('scan')}
+                style={{ color: '#0f172a', cursor: 'pointer', textDecoration: 'underline' }}
+              >
+                Plate Scanner
+              </strong>{' '}
+              for instant detection or the{' '}
+              <strong
+                onClick={() => setActiveTab('voice')}
+                style={{ color: '#0f172a', cursor: 'pointer', textDecoration: 'underline' }}
+              >
+                Voice Logger
+              </strong>{' '}
+              to log hands-free.
             </span>
           </div>
-
-          {/* Body */}
-          {loggedItems.length === 0 ? (
-            <div style={{ padding: '28px 16px', textAlign: 'center' }}>
-              <div style={{ fontSize: '36px', marginBottom: 10 }}>🥗</div>
-              <p style={{ margin: '0 0 4px', fontSize: '0.88rem', fontWeight: 600, color: '#374151' }}>
-                No food logged yet
-              </p>
-              <p style={{ margin: 0, fontSize: '0.76rem', color: '#9ca3af', lineHeight: 1.4 }}>
-                Search and add foods from the left to start your food log.
-              </p>
-            </div>
-          ) : (
-            <>
-              {/* Totals bar */}
-              <div style={{
-                display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
-                gap: 0, borderBottom: '1px solid #f3f4f6'
-              }}>
-                {[
-                  { label: 'kcal', value: total.kcal, color: '#f59e0b' },
-                  { label: 'P',    value: `${total.p.toFixed(0)}g`, color: '#10b981' },
-                  { label: 'C',    value: `${total.c.toFixed(0)}g`, color: '#f59e0b' },
-                  { label: 'F',    value: `${total.f.toFixed(0)}g`, color: '#8b5cf6' },
-                ].map((m, i) => (
-                  <div
-                    key={m.label}
-                    style={{
-                      padding: '8px 6px', textAlign: 'center',
-                      borderRight: i < 3 ? '1px solid #f3f4f6' : 'none'
-                    }}
-                  >
-                    <div style={{ fontSize: '0.88rem', fontWeight: 800, color: m.color }}>{m.value}</div>
-                    <div style={{ fontSize: '0.66rem', color: '#9ca3af' }}>{m.label}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Items */}
-              <div style={{ maxHeight: 240, overflowY: 'auto' }}>
-                {loggedItems.map(item => {
-                  const mealInfo = MEAL_TYPES.find(m => m.id === item.mealType);
-                  return (
-                    <div
-                      key={item.uid}
-                      style={{
-                        display: 'flex', alignItems: 'flex-start', gap: 10,
-                        padding: '10px 14px', borderBottom: '1px solid #f9fafb'
-                      }}
-                    >
-                      <span style={{ fontSize: '18px', flexShrink: 0, marginTop: 2 }}>{item.emoji}</span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#111827' }}>{item.name}</div>
-                        <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: 1 }}>
-                          ×{item.qty} · {item.mealLabel} · <span style={{ color: '#f59e0b', fontWeight: 700 }}>{item.logKcal} kcal</span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => removeItem(item.uid)}
-                        style={{
-                          width: 22, height: 22, borderRadius: '50%', border: 'none',
-                          background: '#fee2e2', color: '#ef4444', cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          flexShrink: 0, marginTop: 2
-                        }}
-                      >
-                        <X size={11} />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Save button */}
-              <div style={{ padding: '12px 14px' }}>
-                <button
-                  onClick={() => {
-                    if (showToast) showToast('Food log saved to your diary!', 'success');
-                    setActiveTab('dashboard');
-                  }}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    gap: 7, width: '100%', padding: '10px',
-                    borderRadius: 10, border: 'none',
-                    background: '#10b981', color: '#fff',
-                    fontWeight: 700, fontSize: '0.86rem',
-                    cursor: 'pointer', fontFamily: 'inherit',
-                    transition: 'all 0.15s ease',
-                    boxShadow: '0 4px 10px rgba(16,185,129,0.2)'
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#059669'}
-                  onMouseLeave={e => e.currentTarget.style.background = '#10b981'}
-                >
-                  <Check size={15} />
-                  Save to Diary
-                </button>
-              </div>
-            </>
-          )}
         </div>
 
-        {/* Nutrition Tip */}
-        <div style={{
-          background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
-          border: '1px solid #ddd6fe', borderRadius: 16, padding: '14px 16px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
-            <Sparkles size={15} style={{ color: '#7c3aed' }} />
-            <span style={{ fontSize: '0.86rem', fontWeight: 700, color: '#4c1d95' }}>Nutrition Tip</span>
+        {/* Right Column: Sidebar */}
+        <div style={{ width: 275, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* 1. Quick Add Card */}
+          <div style={{
+            background: '#fff',
+            borderRadius: 16,
+            border: '1px solid #e5e7eb',
+            padding: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+          }}>
+            <div style={{
+              width: 52,
+              height: 52,
+              borderRadius: '50%',
+              background: '#ecfdf5',
+              border: '1px solid #d1fae5',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '26px',
+              flexShrink: 0
+            }}>
+              🥗
+            </div>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: '0.92rem', color: '#111827' }}>
+                Quick Add
+              </div>
+              <div style={{ fontSize: '0.76rem', color: '#6b7280', margin: '2px 0 8px' }}>
+                Can't find your food?
+              </div>
+              <button
+                onClick={() => setActiveTab('scan')}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '5px 12px',
+                  borderRadius: 20,
+                  border: '1px solid #d1fae5',
+                  background: '#f0fdf4',
+                  color: '#065f46',
+                  fontSize: '0.74rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'background 0.15s ease'
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = '#dcfce7'}
+                onMouseLeave={e => e.currentTarget.style.background = '#f0fdf4'}
+              >
+                <Camera size={13} strokeWidth={2.4} />
+                Scan with Camera
+              </button>
+            </div>
           </div>
-          <p style={{ margin: 0, fontSize: '0.78rem', color: '#5b21b6', lineHeight: 1.55 }}>
-            💡 Aim for at least 25–30g of protein per meal to support muscle synthesis and keep you full longer. Try adding paneer, dal, or eggs!
-          </p>
-        </div>
 
-        {/* Ask AI Coach */}
-        <div style={{
-          background: 'linear-gradient(135deg, #4c1d95 0%, #6d28d9 100%)',
-          borderRadius: 16, padding: '16px', position: 'relative', overflow: 'hidden'
-        }}>
-          <div style={{ position: 'relative', zIndex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
-              <Sparkles size={15} style={{ color: '#c4b5fd' }} />
-              <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#fff' }}>Ask AI Coach</span>
+          {/* 2. Quick Actions Card */}
+          <div style={{
+            background: '#fff',
+            borderRadius: 16,
+            border: '1px solid #e5e7eb',
+            padding: '16px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Zap size={16} color="#10b981" />
+              <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#111827' }}>
+                Quick Actions
+              </div>
             </div>
-            <p style={{ margin: '0 0 12px', fontSize: '0.76rem', color: '#c4b5fd', lineHeight: 1.5 }}>
-              Get personalised diet advice, meal suggestions, and answers to your nutrition questions.
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: 8,
+              marginTop: 12
+            }}>
+              {/* Plate Scanner */}
+              <div
+                onClick={() => setActiveTab('scan')}
+                style={{
+                  background: '#f0fdf4',
+                  border: '1px solid #d1fae5',
+                  borderRadius: 10,
+                  padding: '10px 4px',
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = '#dcfce7'}
+                onMouseLeave={e => e.currentTarget.style.background = '#f0fdf4'}
+              >
+                <Camera size={18} color="#059669" />
+                <div style={{ fontSize: '0.73rem', fontWeight: 700, color: '#065f46', marginTop: 4 }}>
+                  Plate Scanner
+                </div>
+                <div style={{ fontSize: '0.62rem', color: '#6b7280', marginTop: 1 }}>
+                  Scan your meal
+                </div>
+              </div>
+
+              {/* Add Food */}
+              <div
+                onClick={() => setActiveTab('manual')}
+                style={{
+                  background: '#f0fdf4',
+                  border: '1px solid #a7f3d0',
+                  borderRadius: 10,
+                  padding: '10px 4px',
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = '#dcfce7'}
+                onMouseLeave={e => e.currentTarget.style.background = '#f0fdf4'}
+              >
+                <PlusCircle size={18} color="#059669" />
+                <div style={{ fontSize: '0.73rem', fontWeight: 700, color: '#065f46', marginTop: 4 }}>
+                  Add Food
+                </div>
+                <div style={{ fontSize: '0.62rem', color: '#6b7280', marginTop: 1 }}>
+                  Search & log
+                </div>
+              </div>
+
+              {/* Voice Logger */}
+              <div
+                onClick={() => setActiveTab('voice')}
+                style={{
+                  background: '#faf5ff',
+                  border: '1px solid #e9d5ff',
+                  borderRadius: 10,
+                  padding: '10px 4px',
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = '#f3e8ff'}
+                onMouseLeave={e => e.currentTarget.style.background = '#faf5ff'}
+              >
+                <Mic size={18} color="#7c3aed" />
+                <div style={{ fontSize: '0.73rem', fontWeight: 700, color: '#6b21a8', marginTop: 4 }}>
+                  Voice Logger
+                </div>
+                <div style={{ fontSize: '0.62rem', color: '#6b7280', marginTop: 1 }}>
+                  Log by speaking
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 3. Nutrition Tip Card */}
+          <div style={{
+            background: '#f0fdf4',
+            border: '1px solid #bbf7d0',
+            borderRadius: 16,
+            padding: '15px 16px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <AlertCircle size={16} color="#10b981" />
+                <div style={{ fontWeight: 800, fontSize: '0.84rem', color: '#047857' }}>
+                  Nutrition Tip
+                </div>
+              </div>
+              <ChevronRight size={16} color="#10b981" />
+            </div>
+            <p style={{
+              margin: '8px 0 0',
+              fontSize: '0.75rem',
+              color: '#374151',
+              lineHeight: 1.45
+            }}>
+              Try to include more protein in your meals. It helps with muscle recovery and keeps you full for longer.
+            </p>
+          </div>
+
+          {/* 4. Ask AI Coach Card */}
+          <div style={{
+            background: 'linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%)',
+            border: '1px solid #e9d5ff',
+            borderRadius: 16,
+            padding: '18px 16px',
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Sparkles size={16} color="#7c3aed" />
+              <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#6b21a8' }}>
+                Ask AI Coach
+              </div>
+            </div>
+            <p style={{
+              margin: '6px 0 12px',
+              fontSize: '0.74rem',
+              color: '#6b7280',
+              lineHeight: 1.4,
+              maxWidth: 165
+            }}>
+              Get personalized diet advice, meal suggestions, and answers to your nutrition questions.
             </p>
             <button
               onClick={() => setIsChatOpen(true)}
               style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '9px 16px', borderRadius: 10, border: 'none',
-                background: '#7c3aed', color: '#fff',
-                fontWeight: 700, fontSize: '0.82rem',
-                cursor: 'pointer', fontFamily: 'inherit',
-                transition: 'all 0.15s ease',
-                boxShadow: '0 4px 10px rgba(0,0,0,0.2)'
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '7px 14px',
+                borderRadius: 8,
+                background: '#7c3aed',
+                color: '#fff',
+                fontSize: '0.76rem',
+                fontWeight: 600,
+                border: 'none',
+                cursor: 'pointer',
+                boxShadow: '0 2px 6px rgba(124,58,237,0.3)',
+                transition: 'background 0.15s ease'
               }}
               onMouseEnter={e => e.currentTarget.style.background = '#6d28d9'}
               onMouseLeave={e => e.currentTarget.style.background = '#7c3aed'}
             >
               Open AI Coach →
             </button>
+
+            {/* Cute AI Bot graphic in bottom right */}
+            <div style={{
+              position: 'absolute',
+              right: 12,
+              bottom: 8,
+              fontSize: '44px',
+              opacity: 0.88,
+              pointerEvents: 'none'
+            }}>
+              🤖
+            </div>
           </div>
-          {/* Decorative blob */}
-          <div style={{
-            position: 'absolute', right: -20, bottom: -20,
-            width: 80, height: 80, borderRadius: '50%',
-            background: 'rgba(255,255,255,0.06)'
-          }} />
         </div>
       </div>
     </div>
