@@ -65,6 +65,12 @@ class MealItemCreateRequest(BaseModel):
     est_grams: float = Field(gt=0)
 
 
+class ManualMealCreateRequest(BaseModel):
+    food_label: str = Field(min_length=1)
+    est_grams: float = Field(gt=0)
+    meal_type: str = "snack"
+
+
 class MealTotalOut(BaseModel):
     calories: float
     protein_g: float

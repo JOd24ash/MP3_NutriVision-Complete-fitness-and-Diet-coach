@@ -28,6 +28,7 @@ from .guardrails.engine import check_meal, evaluate_meal
 from .guardrails.models import GuardrailCheckInput, GuardrailCheckResponse, MealItemRow, MedicalProfile as MedicalProfileSchema
 from .nutrition.calculator import compute_item_nutrition
 from .nutrition.database import NUTRITION_DB
+from .nutrition.food_data import search_foods as search_catalog
 from .portion.estimator import estimate_meal_from_detections, estimate_meal_from_voice
 from .rag.chat import answer_chat
 from .rag.models import ChatRequest, ChatResponse
@@ -38,6 +39,7 @@ from .schemas import (
     MealItemOut,
     MealItemPatchRequest,
     MealItemCreateRequest,
+    ManualMealCreateRequest,
     MealLogSummary,
     MealResponse,
     MealTotalOut,
@@ -251,8 +253,20 @@ def update_profile(
 
 @app.get(f"{API_PREFIX}/nutrition/foods")
 def search_foods(query: str = ""):
-    term = query.strip().lower()
-    return [{"food_label": label, **values} for label, values in NUTRITION_DB.items() if term in label][:20]
+    return [{"food_label": food["label"], "display_name": food["display_name"], "serving_g": food["serving_g"], "units": food["units"], "diet": food["diet"], "per_100g": {key: food[key] for key in ("kcal", "protein", "carbs", "fat")}, "per_serving": {key: round(food[key] * food["serving_g"] / 100, 1) for key in ("kcal", "protein", "carbs", "fat")}} for food in search_catalog(query)][:20]
+
+
+@app.post(f"{API_PREFIX}/meals/manual", response_model=MealResponse)
+def create_manual_meal(payload: ManualMealCreateRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if payload.meal_type not in {"breakfast", "lunch", "dinner", "snack"}:
+        raise HTTPException(422, "Invalid meal type")
+    from .nutrition.models import FoodItemInput
+    profile = db.query(MedicalProfile).filter(MedicalProfile.user_id == current_user.id).first()
+    rows = evaluate_meal([compute_item_nutrition(FoodItemInput(food_label=payload.food_label, estimated_grams=payload.est_grams))], profile_to_schema(profile))
+    meal = persist_meal(db, current_user.id, MealSource.manual, rows)
+    meal.meal_type = payload.meal_type
+    db.commit(); db.refresh(meal)
+    return meal_log_to_response(meal)
 
 @app.post(f"{API_PREFIX}/meals/photo", response_model=MealResponse)
 async def log_meal_photo(

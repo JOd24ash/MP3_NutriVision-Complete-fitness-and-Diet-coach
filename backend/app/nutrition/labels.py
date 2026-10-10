@@ -6,6 +6,9 @@ ALIASES = {
     "roti": "chapati", "whole_wheat_roti": "chapati", "wheat_roti": "chapati",
     "steamed_idli": "idli", "dal_tadka": "dal", "dal_fry": "dal",
     "curd": "dahi", "fresh_curd": "dahi", "yogurt": "dahi",
+    "phulka": "chapati", "chapatti": "chapati", "chawal": "rice", "plain_rice": "rice",
+    "chana_masala": "chole", "kidney_beans": "rajma", "chai": "masala_chai",
+    "anda": "boiled_egg", "egg": "boiled_egg", "steamed_idly": "idli",
 }
 
 

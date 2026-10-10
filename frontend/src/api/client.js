@@ -148,6 +148,11 @@ export const api = {
 
   // Meals (Photo / Voice / Edit / Confirm)
   meals: {
+    async createManual(data) {
+      const res = await fetch(`${BASE_URL}/meals/manual`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(data) });
+      if (!res.ok) throw new Error('Failed to start manual meal');
+      return await res.json();
+    },
     async logPhoto(formData) {
       if (DEMO_MODE) {
         // Simulate realistic computer-vision delay

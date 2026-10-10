@@ -11,6 +11,7 @@ the RAG knowledge base) before this touches real user-facing advice.
 """
 
 from typing import Dict, List, Optional, TypedDict
+from ..nutrition.food_data import FOODS
 from ..nutrition.labels import normalize_food_label
 
 
@@ -51,6 +52,7 @@ FOOD_HEALTH_DB: Dict[str, FoodHealthProfile] = {
         "condition_tags": {},
     },
 }
+FOOD_HEALTH_DB = {label: {"allergens": food["allergens"], "condition_tags": food["cautions"]} for label, food in FOODS.items()}
 
 # Per-portion carb threshold (grams) above which a diabetic profile gets a
 # warning regardless of which food it is — catches large portions of foods

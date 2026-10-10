@@ -5,7 +5,8 @@ import { Sidebar } from './components/layout/Sidebar';
 import { ToastContainer } from './components/layout/Toast';
 import { TodaySummary } from './components/dashboard/TodaySummary';
 import { PhotoScanner } from './components/meal-scanner/PhotoScanner';
-import { VoiceLogger } from './components/voice-logger/VoiceLogger';
+import { ManualFoodEntry } from './components/meal-scanner/ManualFoodEntry';
+import { VoiceLoggerReal as VoiceLogger } from './components/voice-logger/VoiceLoggerReal';
 import { MealHistory } from './components/history/MealHistory';
 import { HealthMetrics } from './components/history/HealthMetrics';
 import { ChatDrawer } from './components/chat/ChatDrawer';
@@ -33,6 +34,7 @@ export const App = () => {
         <main className="app-main">
           {activeTab === 'dashboard' && <TodaySummary />}
           {activeTab === 'scan' && <PhotoScanner />}
+          {activeTab === 'manual' && <ManualFoodEntry />}
           {activeTab === 'voice' && <VoiceLogger />}
           {activeTab === 'history' && <MealHistory />}
           {activeTab === 'metrics' && <HealthMetrics />}

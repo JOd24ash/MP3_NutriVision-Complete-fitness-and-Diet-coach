@@ -87,6 +87,7 @@ class MealLog(Base):
     raw_image_url = Column(String, nullable=True)
     raw_audio_url = Column(String, nullable=True)
     confirmed = Column(String, default="false")  # "true"/"false" — kept simple across SQLite/Postgres
+    meal_type = Column(String, nullable=True)
 
     user = relationship("User", back_populates="meal_logs")
     items = relationship("MealItem", back_populates="meal_log", cascade="all, delete-orphan")

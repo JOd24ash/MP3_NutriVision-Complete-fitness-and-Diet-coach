@@ -34,6 +34,7 @@ export const Sidebar = () => {
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, desc: 'Today\'s overview' },
     { id: 'scan', label: 'Plate Scanner', icon: Camera, desc: 'AI meal detection' },
+    { id: 'manual', label: 'Add Food', icon: Apple, desc: 'Search foods manually' },
     { id: 'voice', label: 'Voice Logger', icon: Mic, desc: 'Log by speaking' },
     { id: 'history', label: 'Meal History', icon: History, desc: 'Past meals' },
     { id: 'metrics', label: 'Health Metrics', icon: Activity, desc: 'Body stats & trends' },

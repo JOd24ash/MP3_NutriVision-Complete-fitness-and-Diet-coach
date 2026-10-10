@@ -13,6 +13,8 @@ density_g_per_cm3: matches the `density_g_per_cm3` column on
 """
 
 from typing import Dict, Optional, TypedDict
+from ..nutrition.food_data import FOODS
+from ..nutrition.labels import normalize_food_label
 
 
 class PortionDefaults(TypedDict):
@@ -45,15 +47,21 @@ UNIT_DEFAULT_GRAMS: Dict[str, Dict[str, float]] = {
 
 
 def get_portion_defaults(food_label: str) -> PortionDefaults:
-    key = (food_label or "").strip().lower()
+    key = normalize_food_label(food_label)
+    food = FOODS.get(key)
+    if food:
+        return {"height_cm": food.get("height_cm") or DEFAULT_HEIGHT_CM, "density_g_per_cm3": food.get("density_g_per_cm3") or DEFAULT_DENSITY_G_PER_CM3}
     return PORTION_DB.get(
         key, {"height_cm": DEFAULT_HEIGHT_CM, "density_g_per_cm3": DEFAULT_DENSITY_G_PER_CM3}
     )
 
 
 def get_unit_grams(food_label: str, unit: str) -> Optional[float]:
-    key = (food_label or "").strip().lower()
+    key = normalize_food_label(food_label)
     unit_key = (unit or "piece").strip().lower()
+    food = FOODS.get(key)
+    if food:
+        return food["units"].get(unit_key, food["units"].get("piece", food["serving_g"]))
     food_units = UNIT_DEFAULT_GRAMS.get(key)
     if not food_units:
         return None
