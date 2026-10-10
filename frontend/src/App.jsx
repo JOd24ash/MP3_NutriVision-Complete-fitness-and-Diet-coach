@@ -7,7 +7,7 @@ import { TodaySummary } from './components/dashboard/TodaySummary';
 import { PhotoScanner } from './components/meal-scanner/PhotoScanner';
 import { ManualFoodEntry } from './components/meal-scanner/ManualFoodEntry';
 import { VoiceLoggerReal as VoiceLogger } from './components/voice-logger/VoiceLoggerReal';
-import { MealHistoryReference as MealHistory } from './components/history/MealHistoryReference';
+import { MealHistory } from './components/history/MealHistory';
 import { HealthMetrics } from './components/history/HealthMetrics';
 import { ChatDrawer } from './components/chat/ChatDrawer';
 import { ProfileSettingsModal } from './components/guardrails/ProfileSettingsModal';
