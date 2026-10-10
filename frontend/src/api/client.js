@@ -146,6 +146,12 @@ export const api = {
     }
   },
 
+  fitness: {
+    async goals(userId) { const res = await fetch(`${BASE_URL}/users/${userId}/goals`, { headers: authHeaders() }); if (!res.ok) throw new Error('Set your goals to view progress'); return await res.json(); },
+    async summary(userId) { const date = new Date().toISOString().slice(0, 10); const res = await fetch(`${BASE_URL}/users/${userId}/daily-summary?date=${date}`, { headers: authHeaders() }); if (!res.ok) throw new Error('Set your goals to view progress'); return await res.json(); },
+    async suggestions(userId) { const res = await fetch(`${BASE_URL}/users/${userId}/meal-suggestions`, { headers: authHeaders() }); if (!res.ok) throw new Error('Suggestions unavailable'); return await res.json(); },
+  },
+
   // Meals (Photo / Voice / Edit / Confirm)
   meals: {
     async createManual(data) {

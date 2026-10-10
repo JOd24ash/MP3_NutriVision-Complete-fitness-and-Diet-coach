@@ -26,6 +26,7 @@ openai-whisper
 
 # rag
 chromadb
+sentence-transformers
 anthropic          # or swap for your LLM provider's SDK in app/rag/chat.py
 
 # dev

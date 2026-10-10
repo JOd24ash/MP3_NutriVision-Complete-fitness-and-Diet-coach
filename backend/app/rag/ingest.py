@@ -13,7 +13,6 @@ database.py so the pipeline is runnable before curation is done.
 import os
 from typing import List, Tuple
 
-from .database import SAMPLE_KB
 
 CHUNK_SIZE = 800
 CHUNK_OVERLAP = 100
@@ -51,4 +50,4 @@ def load_documents(kb_dir: str = "knowledge_base/icmr_guidelines") -> List[Tuple
                     docs.append((f"{filename}::chunk{i}", title, chunk))
             return docs
 
-    return [(doc["doc_id"], doc["source_title"], doc["text"]) for doc in SAMPLE_KB]
+    return []

@@ -9,7 +9,7 @@ Run with: uvicorn app.main:app --reload   (see SETUP.md)
 """
 
 import os
-from datetime import datetime
+from datetime import date, datetime, time, timedelta
 from typing import List, Optional
 
 from dotenv import load_dotenv
@@ -49,6 +49,7 @@ from .schemas import (
     TokenResponse,
     UserResponse,
     GoalIn,
+    ActivityIn,
 )
 from .speech.nlp_parser import parse_transcript
 from .speech.transcriber import get_transcriber
@@ -523,6 +524,68 @@ def get_goals(user_id: str, db: Session = Depends(get_db), current_user: User = 
     if not goal: raise HTTPException(404, "Set goals first")
     values = {key: getattr(goal, key) for key in GoalIn.model_fields}
     return {**values, **targets(**{key: value for key, value in values.items() if key != "diet_preference"})}
+
+@app.post(f"{API_PREFIX}/users/{{user_id}}/activities")
+def add_activity(user_id: str, payload: ActivityIn, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    require_self(user_id, current_user)
+    from .db.models import ActivityLog, FitnessGoal
+    from .fitness.activities import MET, calories_burned
+    goal = db.get(FitnessGoal, user_id)
+    if not goal: raise HTTPException(400, "Set goals before logging activity")
+    if payload.activity_type not in MET or payload.intensity not in MET[payload.activity_type]: raise HTTPException(422, "Unsupported activity or intensity")
+    activity = ActivityLog(user_id=user_id, activity_type=payload.activity_type, duration_minutes=payload.duration_minutes, intensity=payload.intensity)
+    db.add(activity); db.commit(); db.refresh(activity)
+    return {"id": activity.id, **payload.model_dump(), "calories_burned": calories_burned(payload.activity_type, payload.intensity, payload.duration_minutes, goal.weight_kg), "logged_at": activity.logged_at}
+
+@app.get(f"{API_PREFIX}/users/{{user_id}}/activities")
+def list_activities(user_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    require_self(user_id, current_user)
+    from .db.models import ActivityLog, FitnessGoal
+    from .fitness.activities import calories_burned
+    goal = db.get(FitnessGoal, user_id)
+    return [{"id": item.id, "activity_type": item.activity_type, "duration_minutes": item.duration_minutes, "intensity": item.intensity, "logged_at": item.logged_at, "calories_burned": calories_burned(item.activity_type, item.intensity, item.duration_minutes, goal.weight_kg)} for item in db.query(ActivityLog).filter_by(user_id=user_id).order_by(ActivityLog.logged_at.desc()).all()]
+
+@app.delete(f"{API_PREFIX}/users/{{user_id}}/activities/{{activity_id}}", status_code=204)
+def delete_activity(user_id: str, activity_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    require_self(user_id, current_user)
+    from .db.models import ActivityLog
+    item = db.get(ActivityLog, activity_id)
+    if not item or item.user_id != user_id: raise HTTPException(404, "Activity not found")
+    db.delete(item); db.commit()
+
+@app.get(f"{API_PREFIX}/users/{{user_id}}/daily-summary")
+def daily_summary(user_id: str, date: date, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    require_self(user_id, current_user)
+    from .db.models import ActivityLog, FitnessGoal
+    from .fitness.activities import calories_burned
+    from .fitness.calculator import targets
+    goal = db.get(FitnessGoal, user_id)
+    if not goal: raise HTTPException(400, "Set goals first")
+    start, end = datetime.combine(date, time.min), datetime.combine(date + timedelta(days=1), time.min)
+    meals = db.query(MealLog).filter(MealLog.user_id == user_id, MealLog.logged_at >= start, MealLog.logged_at < end, MealLog.confirmed == "true").all()
+    consumed = {"calories": sum(item.calories or 0 for meal in meals for item in meal.items), "protein_g": sum(item.protein_g or 0 for meal in meals for item in meal.items), "carbs_g": sum(item.carbs_g or 0 for meal in meals for item in meal.items), "fat_g": sum(item.fat_g or 0 for meal in meals for item in meal.items)}
+    activities = db.query(ActivityLog).filter(ActivityLog.user_id == user_id, ActivityLog.logged_at >= start, ActivityLog.logged_at < end).all()
+    burned = sum(calories_burned(item.activity_type, item.intensity, item.duration_minutes, goal.weight_kg) for item in activities)
+    target = targets(goal.age, goal.sex, goal.height_cm, goal.weight_kg, goal.activity_level, goal.goal)
+    return {"date": str(date), "target": target, "consumed": {key: round(value, 1) for key, value in consumed.items()}, "burned": burned, "remaining": {"calories": round(target["calories"] + burned - consumed["calories"]), "protein_g": round(target["protein_g"] - consumed["protein_g"], 1), "carbs_g": round(target["carbs_g"] - consumed["carbs_g"], 1), "fat_g": round(target["fat_g"] - consumed["fat_g"], 1)}}
+
+@app.get(f"{API_PREFIX}/users/{{user_id}}/meal-suggestions")
+def meal_suggestions(user_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    require_self(user_id, current_user)
+    profile = db.query(MedicalProfile).filter_by(user_id=user_id).first()
+    from .db.models import FitnessGoal
+    from .nutrition.food_data import FOODS
+    from .guardrails.database import get_food_health_profile
+    goal = db.get(FitnessGoal, user_id)
+    if not goal: raise HTTPException(400, "Set goals first")
+    options = []
+    for food in FOODS.values():
+        if goal.diet_preference == "vegan" and food["diet"] != "vegan": continue
+        if goal.diet_preference == "veg" and food["diet"] not in {"veg", "vegan"}: continue
+        if goal.diet_preference == "eggetarian" and food["diet"] not in {"veg", "vegan", "eggetarian"}: continue
+        if profile and set(food["allergens"]).intersection(profile.allergies or []): continue
+        options.append({"food_label": food["label"], "display_name": food["display_name"], "serving_g": food["serving_g"], "reason": "Matches your diet preference and has no declared allergen conflict."})
+    return options[:3]
 
 @app.post(f"{API_PREFIX}/guardrails/check", response_model=GuardrailCheckResponse)
 def guardrails_check(

@@ -9,7 +9,7 @@ from typing import List, Optional
 import chromadb
 from chromadb.api import ClientAPI
 
-from .embeddings import HashingEmbeddingFunction
+from .embeddings import LocalSentenceTransformerEmbeddingFunction
 from .ingest import load_documents
 from .models import RetrievedChunk
 
@@ -34,7 +34,7 @@ def get_or_build_collection(
 ):
     """Gets the KB collection, ingesting documents into it if it's empty."""
     client = client or get_client()
-    ef = HashingEmbeddingFunction()
+    ef = LocalSentenceTransformerEmbeddingFunction()
     collection = client.get_or_create_collection(name=COLLECTION_NAME, embedding_function=ef)
 
     if collection.count() == 0:

@@ -11,6 +11,7 @@ interface — nothing else in `retriever.py` needs to change.
 """
 
 import hashlib
+import os
 import math
 import re
 
@@ -33,3 +34,13 @@ class HashingEmbeddingFunction(EmbeddingFunction):
 
     def __call__(self, input):
         return [self._embed_one(t) for t in input]
+
+
+class LocalSentenceTransformerEmbeddingFunction(EmbeddingFunction):
+    """Local multilingual embeddings; no document text leaves this machine."""
+    def __init__(self, model_name=None):
+        from sentence_transformers import SentenceTransformer
+        self.model = SentenceTransformer(model_name or os.environ.get("EMBEDDING_MODEL", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"))
+
+    def __call__(self, input):
+        return self.model.encode(list(input), normalize_embeddings=True).tolist()

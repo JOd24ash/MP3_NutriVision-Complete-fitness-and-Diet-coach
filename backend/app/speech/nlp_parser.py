@@ -20,7 +20,7 @@ def _quantity(value: str) -> float:
 def parse_transcript(transcript: str) -> List[ParsedFoodItem]:
     text = re.sub(r"[^a-z0-9 ]+", " ", (transcript or "").lower())
     known = sorted(set(NUTRITION_DB) | set(ALIASES), key=len, reverse=True)
-    results: List[ParsedFoodItem] = []
+    matches = []
     for spoken in known:
         for match in re.finditer(rf"\b{re.escape(spoken.replace('_', ' '))}\b", text):
             prefix = text[max(0, match.start()-30):match.start()].strip().split()
@@ -33,5 +33,5 @@ def parse_transcript(transcript: str) -> List[ParsedFoodItem]:
                         token = prefix[-2]
                 if token in NUMBER_WORDS or token.replace('.', '', 1).isdigit():
                     quantity, confidence = _quantity(token), .95
-            results.append({"food_label": normalize_food_label(spoken), "quantity": quantity, "unit": unit, "confidence": confidence})
-    return results
+            matches.append((match.start(), {"food_label": normalize_food_label(spoken), "quantity": quantity, "unit": unit, "confidence": confidence}))
+    return [item for _, item in sorted(matches)]

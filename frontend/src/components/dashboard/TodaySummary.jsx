@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { api } from '../../api/client';
 import { MacroRing } from './MacroRing';
 import { 
   Camera, 
@@ -15,20 +16,24 @@ import {
 
 export const TodaySummary = () => {
   const { user, setActiveTab, setIsChatOpen, setIsProfileModalOpen } = useApp();
+  const [summary, setSummary] = useState(null);
+  useEffect(() => { api.fitness.summary(user.id).then(setSummary).catch(() => setSummary(null)); }, [user.id]);
 
   // Simulated today sums
-  const consumedCalories = 1115;
-  const targetCalories = user.target_calories || 2150;
+  const consumedCalories = summary?.consumed.calories || 0;
+  const targetCalories = summary?.target.calories || 0;
   const remainingCalories = Math.max(0, targetCalories - consumedCalories);
 
-  const consumedProtein = 54;
-  const targetProtein = user.target_protein || 115;
+  const consumedProtein = summary?.consumed.protein_g || 0;
+  const targetProtein = summary?.target.protein_g || 0;
 
-  const consumedCarbs = 143;
-  const targetCarbs = user.target_carbs || 240;
+  const consumedCarbs = summary?.consumed.carbs_g || 0;
+  const targetCarbs = summary?.target.carbs_g || 0;
 
-  const consumedFat = 35;
-  const targetFat = user.target_fat || 65;
+  const consumedFat = summary?.consumed.fat_g || 0;
+  const targetFat = summary?.target.fat_g || 0;
+
+  if (!summary) return <section className="glass-panel" style={{ padding: 28 }}><h2>Set your goals to view daily progress</h2><p>Add age, sex, height, weight, activity level, goal, and diet preference to unlock targets and suggestions.</p><button className="btn btn-primary" onClick={() => setIsProfileModalOpen(true)}>Open profile</button></section>;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
