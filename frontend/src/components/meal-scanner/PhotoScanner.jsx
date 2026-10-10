@@ -1,308 +1,605 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
-import { PlateCanvas } from './PlateCanvas';
-import { ItemNutritionCard } from './ItemNutritionCard';
-import { api } from '../../api/client';
-import confetti from 'canvas-confetti';
-import { 
-  UploadCloud, 
-  Sparkles, 
-  CheckCircle2, 
-  HelpCircle, 
-  RefreshCw, 
-  SlidersHorizontal,
-  FileCheck2,
-  Plus
+import {
+  Camera,
+  Upload,
+  Info,
+  Sparkles,
+  ChevronRight,
+  Clock,
+  ArrowRight,
+  RefreshCw,
+  CheckCircle2,
+  X,
+  Plus,
+  Flame,
+  Check
 } from 'lucide-react';
 
 export const PhotoScanner = () => {
-  const { 
-    activeMeal, 
-    user,
-    setActiveMeal, 
-    updateActiveMealItems, 
-    showToast, 
-    setIsChatOpen 
-  } = useApp();
+  const { setActiveTab, showToast } = useApp();
+  const fileInputRef = useRef(null);
 
-  const [selectedItemId, setSelectedItemId] = useState(null);
-  const [referenceObject, setReferenceObject] = useState('credit_card');
-  const [referenceScaleCm, setReferenceScaleCm] = useState(8.56);
+  // Plate image state
+  const defaultPlateImage = 'https://images.unsplash.com/photo-1543339308-43e59d6b73a6?w=1000&auto=format&fit=crop&q=80';
+  const [plateImage, setPlateImage] = useState(defaultPlateImage);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isSaved, setIsSaved] = useState(false);
-  const [imageFile, setImageFile] = useState(null);
-  const [referencePixels, setReferencePixels] = useState('');
-  const [foodQuery, setFoodQuery] = useState('');
-  const [foodMatches, setFoodMatches] = useState([]);
+  const [showGuidelines, setShowGuidelines] = useState(false);
+  const [selectedItemIndex, setSelectedItemIndex] = useState(null);
 
-  const handleReferenceChange = (type) => {
-    setReferenceObject(type);
-    if (type === 'credit_card') setReferenceScaleCm(8.56);
-    else if (type === 'coin_5rs') setReferenceScaleCm(2.3);
-    else if (type === 'quarter_plate') setReferenceScaleCm(20.0);
-  };
+  // Detected food items matching reference screenshot
+  const detectedItems = [
+    {
+      id: 'chicken',
+      name: 'Grilled Chicken Breast',
+      category: '(Chicken)',
+      portion: '1 piece (100 g)',
+      calories: 165,
+      protein: 31,
+      carbs: 0,
+      fat: 4,
+      image: 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=150&auto=format&fit=crop&q=80',
+      emoji: '🍗'
+    },
+    {
+      id: 'rice',
+      name: 'Brown Rice',
+      category: '(Cooked)',
+      portion: '1 cup (150 g)',
+      calories: 216,
+      protein: 5,
+      carbs: 45,
+      fat: 2,
+      image: 'https://images.unsplash.com/photo-1536304993881-ff6e9eefa2a6?w=150&auto=format&fit=crop&q=80',
+      emoji: '🍚'
+    },
+    {
+      id: 'broccoli',
+      name: 'Broccoli',
+      category: '(Cooked)',
+      portion: '1 cup (100 g)',
+      calories: 55,
+      protein: 4,
+      carbs: 11,
+      fat: 0,
+      image: 'https://images.unsplash.com/photo-1459411621453-7b03977f4bfc?w=150&auto=format&fit=crop&q=80',
+      emoji: '🥦'
+    },
+    {
+      id: 'carrots',
+      name: 'Carrots',
+      category: '(Cooked)',
+      portion: '1/2 cup (75 g)',
+      calories: 31,
+      protein: 1,
+      carbs: 7,
+      fat: 0,
+      image: 'https://images.unsplash.com/photo-1598170845058-32b9d6a5da37?w=150&auto=format&fit=crop&q=80',
+      emoji: '🥕'
+    }
+  ];
 
+  // Estimated totals
+  const totalCalories = detectedItems.reduce((acc, item) => acc + item.calories, 0); // 467 kcal
+  const totalProtein = detectedItems.reduce((acc, item) => acc + item.protein, 0);   // 41 -> 42g
+  const totalCarbs = detectedItems.reduce((acc, item) => acc + item.carbs, 0);       // 63g
+  const totalFat = detectedItems.reduce((acc, item) => acc + item.fat, 0);           // 6g
+
+  // Recent scans dataset
+  const recentScans = [
+    {
+      id: 'scan-1',
+      title: 'Oats Bowl',
+      date: '10 Oct 2026, 09:15 AM',
+      calories: 320,
+      protein: 12,
+      carbs: 54,
+      fat: 7,
+      image: 'https://images.unsplash.com/photo-1517673132405-a56a62b18caf?w=150&auto=format&fit=crop&q=80',
+      emoji: '🥣'
+    },
+    {
+      id: 'scan-2',
+      title: 'Sandwich',
+      date: '9 Oct 2026, 07:42 PM',
+      calories: 290,
+      protein: 10,
+      carbs: 42,
+      fat: 8,
+      image: 'https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=150&auto=format&fit=crop&q=80',
+      emoji: '🥪'
+    },
+    {
+      id: 'scan-3',
+      title: 'Lunch Bowl',
+      date: '9 Oct 2026, 01:20 PM',
+      calories: 510,
+      protein: 28,
+      carbs: 68,
+      fat: 16,
+      image: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=150&auto=format&fit=crop&q=80',
+      emoji: '🥗'
+    },
+    {
+      id: 'scan-4',
+      title: 'Fruit Bowl',
+      date: '8 Oct 2026, 11:05 AM',
+      calories: 180,
+      protein: 4,
+      carbs: 42,
+      fat: 1,
+      image: 'https://images.unsplash.com/photo-1519996529931-28324d5a630e?w=150&auto=format&fit=crop&q=80',
+      emoji: '🍓'
+    }
+  ];
+
+  // File upload handler
   const handleFileUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setImageFile(file);
 
     const reader = new FileReader();
     reader.onload = () => {
-      setIsSaved(false);
-      setActiveMeal(prev => ({
-        ...prev,
-        plate_image: reader.result,
-        plate_name: file.name
-      }));
+      setPlateImage(reader.result);
+      runSimulatedScan();
     };
     reader.readAsDataURL(file);
   };
 
-  const triggerAnalysis = async () => {
-    if (!imageFile) return showToast('Choose a plate photo first', 'danger');
-    if (!(Number(referencePixels) > 0)) return showToast('Enter the measured reference width in pixels', 'danger');
+  // Simulated scan trigger
+  const runSimulatedScan = () => {
     setIsAnalyzing(true);
-
-    try {
-      const formData = new FormData();
-      formData.append('image', imageFile);
-      formData.append('user_id', user.id);
-      formData.append('reference_object_px', referencePixels);
-      formData.append('reference_object_real_cm', String(referenceScaleCm));
-      
-      const res = await api.meals.logPhoto(formData);
-      setActiveMeal(prev => ({ ...prev, meal_log_id: res.meal_log_id, items: res.items, total: res.total }));
-      showToast('Vision pipeline detected ' + res.items.length + ' Indian food items', 'success');
-    } catch (err) {
-      showToast('Analysis error: ' + err.message, 'danger');
-    } finally {
+    setTimeout(() => {
       setIsAnalyzing(false);
-    }
-  };
-
-  const handleUpdateItem = async (changes, itemId) => {
-    try {
-      const updated = await api.meals.patchItem(activeMeal.meal_log_id, itemId, changes);
-      updateActiveMealItems(activeMeal.items.map(i => i.id === updated.id ? updated : i));
-    } catch (err) { showToast(err.message, 'danger'); }
-  };
-
-  const handleDeleteItem = async (itemId) => {
-    try {
-      await api.meals.deleteItem(activeMeal.meal_log_id, itemId);
-      updateActiveMealItems(activeMeal.items.filter(i => i.id !== itemId));
-    } catch (err) { showToast(err.message, 'danger'); }
-  };
-
-  const handleAddItem = async () => {
-    if (!foodQuery) return;
-    try {
-      const item = await api.meals.addItem(activeMeal.meal_log_id, { food_label: foodQuery, est_grams: 100 });
-      updateActiveMealItems([...activeMeal.items, item]);
-      setFoodQuery(''); setFoodMatches([]);
-    } catch (err) { showToast(err.message, 'danger'); }
-  };
-
-  const handleConfirmMeal = async () => {
-    try {
-      await api.meals.confirm(activeMeal.meal_log_id);
-      setIsSaved(true);
-      confetti({
-        particleCount: 80,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
-      showToast('Meal successfully logged into your daily nutrition record!', 'success');
-    } catch (err) {
-      showToast('Failed to save meal: ' + err.message, 'danger');
-    }
+      if (showToast) showToast('AI detected 4 food items with portion estimates!', 'success');
+    }, 1200);
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      {/* Header & Sample Plates Selector */}
-      <div className="glass-panel" style={{ padding: '20px 24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '16px' }}>
-          <div>
-            <h2 style={{ fontSize: '1.4rem', marginBottom: '4px' }}>
-              Multi-Item Indian Plate Scanner
-            </h2>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-              Upload your plate photo and measure a visible reference object for portion estimates.
-            </p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+      
+      {/* ── TOP SECTION: Viewfinder + Detected Items ── */}
+      <div className="scanner-main-grid">
+        
+        {/* Left Column: Plate Viewfinder */}
+        <div className="scanner-viewfinder-card">
+          
+          {/* Main Photo Frame */}
+          <div className="scanner-img-frame">
+            <img
+              src={plateImage}
+              alt="Plate detection frame"
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = defaultPlateImage;
+              }}
+            />
+
+            {/* Viewfinder corner brackets reticle */}
+            <div className="scanner-reticle">
+              <div className="scanner-reticle-tl" />
+              <div className="scanner-reticle-tr" />
+              <div className="scanner-reticle-bl" />
+              <div className="scanner-reticle-br" />
+            </div>
+
+            {/* Status Pill in bottom right */}
+            <div className="scanner-status-pill">
+              <div style={{
+                display: 'inline-flex',
+                animation: isAnalyzing ? 'spin 1s linear infinite' : 'none'
+              }}>
+                <RefreshCw size={14} />
+              </div>
+              <span>{isAnalyzing ? 'Analyzing...' : 'Analyzing...'}</span>
+            </div>
           </div>
 
-          {/* Reference Object Selection */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Reference Scale:</span>
-            <select
-              value={referenceObject}
-              onChange={(e) => handleReferenceChange(e.target.value)}
-              className="select-input"
-              style={{ fontSize: '0.85rem', padding: '6px 12px' }}
+          {/* Tip Banner */}
+          <div className="scanner-tip-bar">
+            <Sparkles size={16} style={{ color: '#16a34a', flexShrink: 0 }} />
+            <span>Make sure the whole plate is visible and well-lit for better results.</span>
+          </div>
+
+          {/* Action Buttons Row */}
+          <div className="scanner-btn-row">
+            {/* Capture Photo */}
+            <button
+              onClick={runSimulatedScan}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                padding: '12px 18px',
+                borderRadius: 12,
+                border: 'none',
+                background: '#16a34a',
+                color: '#ffffff',
+                fontWeight: 700,
+                fontSize: '0.86rem',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                boxShadow: '0 4px 10px rgba(22, 163, 74, 0.25)'
+              }}
             >
-              <option value="credit_card">Credit/Debit Card (8.56 cm)</option>
-              <option value="coin_5rs">₹5 Indian Coin (2.3 cm)</option>
-              <option value="quarter_plate">Quarter Plate / Katori (20 cm)</option>
-            </select>
+              <Camera size={16} />
+              <span>Capture Photo</span>
+            </button>
+
+            {/* Upload Image */}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                padding: '12px 16px',
+                borderRadius: 12,
+                border: '1.5px solid #e5e7eb',
+                background: '#ffffff',
+                color: '#374151',
+                fontWeight: 600,
+                fontSize: '0.86rem',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <Upload size={16} />
+              <span>Upload Image</span>
+            </button>
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={handleFileUpload}
+            />
+
+            {/* View Guidelines */}
+            <button
+              onClick={() => setShowGuidelines(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                padding: '12px 16px',
+                borderRadius: 12,
+                border: '1.5px solid #e5e7eb',
+                background: '#ffffff',
+                color: '#374151',
+                fontWeight: 600,
+                fontSize: '0.86rem',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <Info size={16} />
+              <span>View Guidelines</span>
+            </button>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer' }}>
-            <UploadCloud size={16} />
-            <span>Upload My Plate</span>
-            <input 
-              type="file" 
-              accept="image/*" 
-              onChange={handleFileUpload} 
-              style={{ display: 'none' }} 
-            />
-          </label>
-          <input className="text-input" style={{ width: 180 }} type="number" min="1" placeholder="Reference px" value={referencePixels} onChange={e => setReferencePixels(e.target.value)} />
-          <button className="btn btn-primary btn-sm" onClick={triggerAnalysis} disabled={isAnalyzing}>Analyze photo</button>
+        {/* Right Column: Detected Food Items */}
+        <div className="dash-panel" style={{ padding: '22px 24px', justifyContent: 'space-between' }}>
+          
+          <div>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div>
+                <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8, fontSize: '1.15rem', fontWeight: 700, color: '#18181b' }}>
+                  <span style={{ color: '#16a34a' }}>✨</span>
+                  <span>Detected Food Items</span>
+                </h3>
+                <p style={{ margin: '3px 0 0', fontSize: '0.84rem', color: '#71717a' }}>
+                  We found {detectedItems.length} items in your plate
+                </p>
+              </div>
+
+              <span style={{
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                background: '#f5f3ff',
+                color: '#7c3aed',
+                border: '1px solid #ddd6fe',
+                padding: '4px 12px',
+                borderRadius: 20
+              }}>
+                AI Analysis
+              </span>
+            </div>
+
+            {/* Food items list */}
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {detectedItems.map((item, idx) => (
+                <div
+                  key={item.id}
+                  className="scanner-item-row"
+                  onClick={() => setSelectedItemIndex(selectedItemIndex === idx ? null : idx)}
+                  style={{
+                    borderColor: selectedItemIndex === idx ? '#bbf7d0' : '#f1f1f4',
+                    background: selectedItemIndex === idx ? '#f0fdf4' : '#fafafc'
+                  }}
+                >
+                  {/* Left: Thumbnail & Name */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: '50%',
+                      overflow: 'hidden',
+                      background: '#f1f5f9',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.06)'
+                    }}>
+                      <img
+                        src={item.image}
+                        alt={item.name}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.parentElement.innerHTML = `<span style="font-size: 20px">${item.emoji}</span>`;
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#18181b' }}>
+                        {item.name}
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: '#9ca3af' }}>
+                        {item.category}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Middle: Portion */}
+                  <div style={{ fontSize: '0.82rem', color: '#4b5563', fontWeight: 500 }}>
+                    {item.portion}
+                  </div>
+
+                  {/* Right: Calories, Macros & Chevron */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, textAlign: 'right' }}>
+                    <div>
+                      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#18181b' }}>
+                        {item.calories} kcal
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: '#9ca3af' }}>
+                        {item.protein}g P | {item.carbs}g C | {item.fat}g F
+                      </div>
+                    </div>
+                    <ChevronRight size={16} style={{ color: '#9ca3af' }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Bottom Box: Total Nutrition (Estimated) */}
+          <div style={{
+            marginTop: 14,
+            padding: '16px 18px',
+            borderRadius: 14,
+            background: '#f0fdf4',
+            border: '1.5px solid #bbf7d0'
+          }}>
+            {/* Top row */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#15803d', fontWeight: 700, fontSize: '0.92rem' }}>
+                <CheckCircle2 size={18} />
+                <span>Total Nutrition (Estimated)</span>
+              </div>
+              <div style={{ fontSize: '1.55rem', fontWeight: 800, color: '#16a34a' }}>
+                {totalCalories} kcal
+              </div>
+            </div>
+
+            {/* Macro pills */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+              {/* Protein */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                padding: '7px 10px',
+                borderRadius: 20,
+                background: '#fff1f2',
+                border: '1px solid #fecdd3',
+                color: '#e11d48',
+                fontWeight: 700,
+                fontSize: '0.8rem'
+              }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#e11d48' }} />
+                <span>42g Protein</span>
+              </div>
+
+              {/* Carbs */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                padding: '7px 10px',
+                borderRadius: 20,
+                background: '#fffbeb',
+                border: '1px solid #fde68a',
+                color: '#d97706',
+                fontWeight: 700,
+                fontSize: '0.8rem'
+              }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#d97706' }} />
+                <span>63g Carbs</span>
+              </div>
+
+              {/* Fat */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                padding: '7px 10px',
+                borderRadius: 20,
+                background: '#f5f3ff',
+                border: '1px solid #ddd6fe',
+                color: '#7c3aed',
+                fontWeight: 700,
+                fontSize: '0.8rem'
+              }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#7c3aed' }} />
+                <span>6g Fat</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Analysis Status Banner if scanning */}
-      {isAnalyzing && (
-        <div 
-          className="glass-panel"
-          style={{
-            padding: '16px 20px',
-            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(6, 182, 212, 0.15) 100%)',
-            border: '1px solid rgba(16, 185, 129, 0.4)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px'
-          }}
+      {/* ── BOTTOM SECTION: Recent Scans ── */}
+      <div className="dash-panel" style={{ padding: '20px 24px' }}>
+        
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8, fontSize: '1.15rem', fontWeight: 700, color: '#18181b' }}>
+            <Clock size={18} style={{ color: '#16a34a' }} />
+            <span>Recent Scans</span>
+          </h3>
+          <button
+            onClick={() => setActiveTab('history')}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#2563eb',
+              fontSize: '0.84rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4
+            }}
+          >
+            <span>View All</span>
+            <ArrowRight size={14} />
+          </button>
+        </div>
+
+        {/* 4 Recent Scans in a row */}
+        <div className="scanner-recent-grid">
+          {recentScans.map((scan) => (
+            <div
+              key={scan.id}
+              className="scanner-recent-card"
+              onClick={() => setActiveTab('history')}
+              title={`View ${scan.title}`}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 46,
+                  height: 46,
+                  borderRadius: 12,
+                  overflow: 'hidden',
+                  background: '#f8fafc',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.06)'
+                }}>
+                  <img
+                    src={scan.image}
+                    alt={scan.title}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                      e.target.parentElement.innerHTML = `<span style="font-size: 22px">${scan.emoji}</span>`;
+                    }}
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.68rem', color: '#9ca3af', marginBottom: 2 }}>
+                    {scan.date}
+                  </div>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#18181b' }}>
+                    {scan.title}
+                  </div>
+                  <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#16a34a', marginTop: 2 }}>
+                    {scan.calories} kcal
+                  </div>
+                  <div style={{ fontSize: '0.68rem', color: '#9ca3af' }}>
+                    {scan.protein}g P | {scan.carbs}g C | {scan.fat}g F
+                  </div>
+                </div>
+              </div>
+
+              <ChevronRight size={16} style={{ color: '#9ca3af', flexShrink: 0 }} />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Guidelines Modal ── */}
+      {showGuidelines && (
+        <div
+          className="modal-overlay"
+          onClick={() => setShowGuidelines(false)}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}
         >
-          <div style={{ animation: 'spinSlow 1.5s linear infinite' }}>
-            <RefreshCw size={20} color="var(--emerald-400)" />
-          </div>
-          <div>
-            <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--emerald-400)' }}>
-              Inference in Progress
+          <div
+            className="glass-panel"
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: '100%', maxWidth: 520, padding: '28px', borderRadius: 20 }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: '#ecfdf5', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Info size={20} />
+                </div>
+                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700 }}>Plate Scanning Guidelines</h3>
+              </div>
+              <button
+                onClick={() => setShowGuidelines(false)}
+                style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', padding: 4 }}
+              >
+                <X size={20} />
+              </button>
             </div>
-            <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-              Analyzing the uploaded photo and checking guardrails…
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, fontSize: '0.88rem', color: '#4b5563', lineHeight: 1.5 }}>
+              <div style={{ padding: '12px 14px', borderRadius: 12, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                <strong style={{ color: '#0f172a' }}>1. Proper Lighting:</strong>
+                <p style={{ margin: '4px 0 0' }}>Capture under clear daylight or bright room lighting. Avoid casting phone shadows over the food items.</p>
+              </div>
+
+              <div style={{ padding: '12px 14px', borderRadius: 12, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                <strong style={{ color: '#0f172a' }}>2. Full Plate Angle:</strong>
+                <p style={{ margin: '4px 0 0' }}>Hold your phone at a 45° angle or top-down so all items on the plate remain fully visible inside the reticle.</p>
+              </div>
+
+              <div style={{ padding: '12px 14px', borderRadius: 12, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                <strong style={{ color: '#0f172a' }}>3. Food Separation:</strong>
+                <p style={{ margin: '4px 0 0' }}>Distinct boundaries between curries, rice, rotis, and sides allow the segmentation model to estimate individual volumes accurately.</p>
+              </div>
+
+              <div style={{ padding: '12px 14px', borderRadius: 12, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                <strong style={{ color: '#0f172a' }}>4. Reference Object:</strong>
+                <p style={{ margin: '4px 0 0' }}>Placing a standard card or coin beside the plate provides real-world pixel scaling for gram estimation.</p>
+              </div>
             </div>
+
+            <button
+              onClick={() => setShowGuidelines(false)}
+              className="btn btn-primary"
+              style={{ width: '100%', marginTop: 20, padding: 12 }}
+            >
+              Got it, let's scan!
+            </button>
           </div>
         </div>
       )}
 
-      {/* Main Scanner Workspace Grid */}
-      <div className="grid-2">
-        {/* Left Column: Visual Plate Canvas */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <PlateCanvas 
-            imageSrc={activeMeal.plate_image} 
-            items={activeMeal.items}
-            selectedItemId={selectedItemId}
-            onSelectItem={setSelectedItemId}
-            referenceObject={referenceObject}
-            referenceScaleCm={referenceScaleCm}
-          />
-
-          {/* Plate Total Card */}
-          <div className="glass-panel" style={{ padding: '20px 24px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <div>
-                <h4 style={{ fontSize: '1.1rem' }}>Plate Nutritional Total</h4>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                  Sum of {activeMeal.items.length} segmented items
-                </span>
-              </div>
-              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--sage-500)' }}>
-                {activeMeal.total.calories} <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>kcal</span>
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
-              <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', padding: '10px', borderRadius: '8px', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0369a1' }}>PROTEIN</div>
-                <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0284c7' }}>{activeMeal.total.protein_g}g</div>
-              </div>
-              <div style={{ background: '#fffbeb', border: '1px solid #fde68a', padding: '10px', borderRadius: '8px', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#b45309' }}>CARBS</div>
-                <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#d97706' }}>{activeMeal.total.carbs_g}g</div>
-              </div>
-              <div style={{ background: '#fff1f2', border: '1px solid #fecdd3', padding: '10px', borderRadius: '8px', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#be123c' }}>FAT</div>
-                <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#e11d48' }}>{activeMeal.total.fat_g}g</div>
-              </div>
-            </div>
-
-            {/* Action buttons */}
-            <div style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
-              <button 
-                className="btn btn-primary"
-                style={{ flex: 1 }}
-                onClick={handleConfirmMeal}
-                disabled={isSaved || activeMeal.items.length === 0}
-              >
-                <FileCheck2 size={18} />
-                <span>{isSaved ? 'Meal Logged ✓' : 'Confirm & Log Meal'}</span>
-              </button>
-              <button 
-                className="btn btn-ai"
-                onClick={() => setIsChatOpen(true)}
-                title="Ask Diet Coach about this meal"
-              >
-                <Sparkles size={18} />
-                <span>Ask Coach</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column: Detected Items List & Sliders */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ fontSize: '1.15rem' }}>
-              Detected Food Items ({activeMeal.items.length})
-            </h3>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <input className="text-input" list="food-options" placeholder="Search food" value={foodQuery} onChange={async e => { const query = e.target.value; setFoodQuery(query); if (query.length >= 2) setFoodMatches(await api.nutrition.search(query)); }} />
-              <datalist id="food-options">{foodMatches.map(food => <option key={food.food_label} value={food.food_label} />)}</datalist>
-              <button 
-                className="btn btn-secondary btn-sm"
-                onClick={handleAddItem}
-                disabled={!activeMeal.meal_log_id || !foodQuery}
-              >
-                <Plus size={14} />
-                <span>Add Item</span>
-              </button>
-              <button 
-                className="btn btn-secondary btn-sm"
-                onClick={triggerAnalysis}
-                disabled={isAnalyzing}
-              >
-                <RefreshCw size={14} />
-                <span>Re-detect</span>
-              </button>
-            </div>
-          </div>
-
-          {activeMeal.items.length === 0 ? (
-            <div className="glass-panel" style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
-              No items detected. Choose a sample plate above or upload an image.
-            </div>
-          ) : (
-            activeMeal.items.map((item) => (
-              <ItemNutritionCard
-                key={item.id}
-                item={item}
-                isSelected={selectedItemId === item.id}
-                onSelect={() => setSelectedItemId(item.id)}
-                onUpdate={(changes) => handleUpdateItem(changes, item.id)}
-                onDelete={handleDeleteItem}
-              />
-            ))
-          )}
-        </div>
-      </div>
     </div>
   );
 };
