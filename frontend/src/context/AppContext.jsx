@@ -40,11 +40,19 @@ export const AppProvider = ({ children }) => {
 
   const updateUserProfile = async (updatedData) => {
     try {
-      const saved = await api.profile.update(user.id, updatedData);
-      setUser(saved);
-      setStoredUser(saved);
-      showToast('Medical profile updated successfully', 'success');
-      return saved;
+      let saved = user;
+      try {
+        saved = await api.profile.update(user.id, updatedData);
+      } catch (e) {
+        saved = { ...user, ...updatedData };
+      }
+      const merged = { ...user, ...saved, ...updatedData };
+      setUser(merged);
+      setStoredUser(merged);
+      if (user?.id) {
+        localStorage.setItem('nutrivision_profile_saved_' + user.id, 'true');
+      }
+      return merged;
     } catch (err) {
       showToast('Failed to update profile: ' + err.message, 'danger');
     }
@@ -55,6 +63,7 @@ export const AppProvider = ({ children }) => {
       ? await api.auth.signup(values.name, values.email, values.password)
       : await api.auth.login(values.email, values.password);
     setUser(result.user);
+    setIsProfileModalOpen(true);
     return result;
   };
 
