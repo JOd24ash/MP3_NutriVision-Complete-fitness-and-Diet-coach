@@ -7,8 +7,7 @@ import {
   History,
   Activity,
   Sparkles,
-  Wifi,
-  WifiOff,
+  LogOut,
   Bell
 } from 'lucide-react';
 
@@ -21,7 +20,7 @@ const pageTitles = {
 };
 
 export const Navbar = () => {
-  const { activeTab, isBackendOnline, setIsChatOpen, user } = useApp();
+  const { activeTab, setIsChatOpen, user, logout } = useApp();
 
   const page = pageTitles[activeTab] || pageTitles.dashboard;
   const PageIcon = page.icon;
@@ -47,17 +46,6 @@ export const Navbar = () => {
         {/* Date */}
         <div className="topbar-date">{timeStr}</div>
 
-        {/* Backend Status */}
-        <div
-          className={`topbar-status-pill ${isBackendOnline ? 'status-online' : 'status-demo'}`}
-          title={isBackendOnline
-            ? 'Connected to live FastAPI backend on :8000'
-            : 'Demo mode (backend offline)'}
-        >
-          {isBackendOnline ? <Wifi size={13} /> : <WifiOff size={13} />}
-          <span>{isBackendOnline ? 'FastAPI Live' : 'Backend offline'}</span>
-        </div>
-
         {/* AI Coach Button */}
         <button
           className="btn btn-ai btn-sm topbar-ai-btn"
@@ -66,7 +54,21 @@ export const Navbar = () => {
           <Sparkles size={15} />
           <span>AI Coach</span>
         </button>
+
+        {/* Logout Button */}
+        {user && (
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={logout}
+            title="Log out"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          >
+            <LogOut size={15} />
+            <span>Log out</span>
+          </button>
+        )}
       </div>
     </header>
   );
 };
+

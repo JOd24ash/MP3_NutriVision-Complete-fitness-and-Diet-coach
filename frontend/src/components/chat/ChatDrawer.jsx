@@ -68,7 +68,7 @@ export const ChatDrawer = () => {
         ...prev,
         {
           role: 'assistant',
-          text: "I encountered an error querying the guidelines. Please ensure the backend ChromaDB service is initialized.",
+          text: "I encountered an error retrieving nutrition guidelines. Please try again shortly.",
           sources: [],
           guardrail_flags: []
         }

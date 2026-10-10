@@ -9,8 +9,7 @@ import {
   MessageSquareText,
   User,
   Sparkles,
-  Wifi,
-  WifiOff,
+  LogOut,
   ChevronLeft,
   ChevronRight,
   Apple,
@@ -24,7 +23,7 @@ export const Sidebar = () => {
     activeTab,
     setActiveTab,
     user,
-    isBackendOnline,
+    logout,
     setIsChatOpen,
     setIsProfileModalOpen
   } = useApp();
@@ -63,15 +62,6 @@ export const Sidebar = () => {
         >
           {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
         </button>
-      </div>
-
-      {/* Status Pill */}
-      <div className={`sidebar-status ${isBackendOnline ? 'sidebar-status-online' : 'sidebar-status-demo'}`}>
-        <div className="sidebar-status-dot" />
-        {!collapsed && (
-          <span>{isBackendOnline ? 'FastAPI Live' : 'Backend offline'}</span>
-        )}
-        {collapsed && (isBackendOnline ? <Wifi size={13} /> : <WifiOff size={13} />)}
       </div>
 
       {/* Navigation Items */}
@@ -119,25 +109,35 @@ export const Sidebar = () => {
         </button>
       </div>
 
-      {/* User Profile at Bottom */}
+      {/* User Profile & Logout at Bottom */}
       <div className="sidebar-footer">
         <button
           className="sidebar-user-btn"
           onClick={() => setIsProfileModalOpen(true)}
-          title={collapsed ? (user.name || 'Profile') : ''}
+          title={collapsed ? (user?.name || 'Profile') : ''}
         >
           <div className="sidebar-user-avatar">
-            {user.name ? user.name[0].toUpperCase() : 'U'}
+            {user?.name ? user.name[0].toUpperCase() : 'U'}
           </div>
           {!collapsed && (
             <div className="sidebar-user-info">
-              <span className="sidebar-user-name">{user.name?.split(' ')[0] || 'User'}</span>
+              <span className="sidebar-user-name">{user?.name?.split(' ')[0] || 'User'}</span>
               <span className="sidebar-user-role">View Profile</span>
             </div>
           )}
           {!collapsed && <Settings size={15} className="sidebar-settings-icon" />}
         </button>
+
+        <button
+          className="sidebar-logout-btn"
+          onClick={logout}
+          title={collapsed ? 'Log out' : 'Log out of your account'}
+        >
+          <LogOut size={16} />
+          {!collapsed && <span>Log out</span>}
+        </button>
       </div>
     </aside>
   );
 };
+

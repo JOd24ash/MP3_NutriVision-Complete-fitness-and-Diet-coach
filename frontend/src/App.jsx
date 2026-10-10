@@ -15,7 +15,7 @@ import { Sparkles } from 'lucide-react';
 import { AuthScreen } from './components/auth/AuthScreen';
 
 export const App = () => {
-  const { activeTab, setIsChatOpen, user, isBackendOnline } = useApp();
+  const { activeTab, setIsChatOpen, user } = useApp();
 
   if (!user) return <AuthScreen />;
 
@@ -26,7 +26,6 @@ export const App = () => {
 
       {/* Right Column: topbar + content */}
       <div className="app-body">
-        {!isBackendOnline && <div role="status" style={{ padding: '10px 16px', background: '#fef3c7', color: '#92400e', textAlign: 'center' }}>Demo mode (backend offline). Sign in is unavailable until the API is running.</div>}
         {/* Top Header Bar */}
         <Navbar />
 
@@ -48,15 +47,6 @@ export const App = () => {
               <span className="footer-name">NutriVision AI</span>
               <span className="footer-sep">•</span>
               <span className="footer-tagline">Nutrition estimates only — not medical advice.</span>
-            </div>
-            <div className="footer-tech">
-              <span>FastAPI</span>
-              <span className="footer-dot" />
-              <span>React 19</span>
-              <span className="footer-dot" />
-              <span>ChromaDB</span>
-              <span className="footer-dot" />
-              <span>Whisper</span>
             </div>
           </div>
         </footer>
