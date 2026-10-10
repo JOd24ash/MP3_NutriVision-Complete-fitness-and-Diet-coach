@@ -87,4 +87,15 @@ def get_detector() -> Detector:
     checkpoint_path = os.environ.get("YOLO_CHECKPOINT_PATH")
     if checkpoint_path and os.path.isfile(checkpoint_path):
         return YOLOSegDetector(checkpoint_path)
-    return MockYOLOSegDetector()
+    if os.environ.get("USE_MOCK_DETECTOR", "false").lower() == "true":
+        return MockYOLOSegDetector()
+    raise RuntimeError("Food detection model not installed. Add a trained checkpoint (see docs/TRAINING_HANDOFF.md) or enable demo mode.")
+
+
+def vision_status() -> dict:
+    checkpoint_path = os.environ.get("YOLO_CHECKPOINT_PATH")
+    if checkpoint_path and os.path.isfile(checkpoint_path):
+        return {"mode": "yolo", "model_name": os.path.basename(checkpoint_path), "classes": []}
+    if os.environ.get("USE_MOCK_DETECTOR", "false").lower() == "true":
+        return {"mode": "mock", "model_name": "fixture", "classes": [d["food_label"] for d in MockYOLOSegDetector.FIXTURE]}
+    return {"mode": "unavailable", "model_name": None, "classes": []}

@@ -6,6 +6,7 @@ pydantic
 email-validator
 python-multipart
 python-dotenv
+pyyaml
 
 # auth
 python-jose[cryptography]

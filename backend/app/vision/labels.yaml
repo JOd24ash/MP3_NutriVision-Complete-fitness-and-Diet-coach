@@ -1,0 +1,7 @@
+classes:
+  chapati: {display_name: Chapati, serving_g: 40, min_g: 20, max_g: 120, height_cm: 0.4, density_g_per_cm3: 0.9, fill_factor: 0.75}
+  rice: {display_name: Rice, serving_g: 150, min_g: 50, max_g: 400, height_cm: 2.0, density_g_per_cm3: 0.75, fill_factor: 0.7}
+  dal: {display_name: Dal, serving_g: 150, min_g: 50, max_g: 350, height_cm: 2.5, density_g_per_cm3: 1.0, fill_factor: 0.7}
+  paneer: {display_name: Paneer, serving_g: 100, min_g: 20, max_g: 250, height_cm: 1.5, density_g_per_cm3: 1.05, fill_factor: 0.7}
+  dahi: {display_name: Dahi, serving_g: 100, min_g: 50, max_g: 300, height_cm: 2.0, density_g_per_cm3: 1.0, fill_factor: 0.7}
+  idli: {display_name: Idli, serving_g: 35, min_g: 20, max_g: 100, height_cm: 3.0, density_g_per_cm3: 0.6, fill_factor: 0.75}

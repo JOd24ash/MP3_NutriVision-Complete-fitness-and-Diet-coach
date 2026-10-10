@@ -49,7 +49,7 @@ from .schemas import (
 )
 from .speech.nlp_parser import parse_transcript
 from .speech.transcriber import get_transcriber
-from .vision.detector import get_detector
+from .vision.detector import get_detector, vision_status
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -265,7 +265,10 @@ async def log_meal_photo(
     require_self(user_id, current_user)
     image_bytes = await image.read()
 
-    detections = get_detector().detect(image_bytes)
+    try:
+        detections = get_detector().detect(image_bytes)
+    except RuntimeError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
     if not detections:
         raise HTTPException(status_code=422, detail="No items detected in image")
 
@@ -279,6 +282,11 @@ async def log_meal_photo(
     return meal_log_to_response(meal_log)
 
 
+@app.get(f"{API_PREFIX}/vision/status")
+def get_vision_status():
+    return vision_status()
+
+
 @app.post(f"{API_PREFIX}/meals/voice", response_model=MealResponse)
 async def log_meal_voice(
     user_id: str = Form(...),
@@ -289,7 +297,10 @@ async def log_meal_voice(
     require_self(user_id, current_user)
     audio_bytes = await audio.read()
 
-    transcript = get_transcriber().transcribe(audio_bytes)
+    try:
+        transcript = get_transcriber().transcribe(audio_bytes)
+    except (RuntimeError, FileNotFoundError) as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
     parsed = parse_transcript(transcript)
     if not parsed:
         raise HTTPException(
@@ -304,7 +315,9 @@ async def log_meal_voice(
     rows = evaluate_meal(nutrition_results, profile_to_schema(profile))
 
     meal_log = persist_meal(db, user_id, MealSource.voice, rows)
-    return meal_log_to_response(meal_log, transcript=transcript)
+    response = meal_log_to_response(meal_log, transcript=transcript)
+    response.needs_manual_review = any(item["confidence"] < .8 for item in parsed)
+    return response
 
 
 @app.patch(f"{API_PREFIX}/meals/{{meal_log_id}}/items/{{item_id}}", response_model=MealItemOut)

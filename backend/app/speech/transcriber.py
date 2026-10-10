@@ -7,6 +7,8 @@ built and tested without downloading a model or handling real audio.
 """
 
 import os
+import subprocess
+import tempfile
 from typing import Protocol
 
 
@@ -21,12 +23,13 @@ class WhisperTranscriber:
         self.model = whisper.load_model(model_name)
 
     def transcribe(self, audio_bytes: bytes) -> str:
-        import tempfile
-
-        with tempfile.NamedTemporaryFile(suffix=".wav") as f:
-            f.write(audio_bytes)
-            f.flush()
-            result = self.model.transcribe(f.name)
+        with tempfile.TemporaryDirectory() as directory:
+            source = os.path.join(directory, "recording.webm")
+            target = os.path.join(directory, "recording.wav")
+            with open(source, "wb") as file:
+                file.write(audio_bytes)
+            subprocess.run(["ffmpeg", "-y", "-i", source, "-ar", "16000", "-ac", "1", target], check=True, capture_output=True)
+            result = self.model.transcribe(target, language=None)
         return result["text"].strip()
 
 
@@ -46,4 +49,6 @@ def get_transcriber() -> Transcriber:
             return WhisperTranscriber(model_name)
         except ImportError:
             pass
-    return MockTranscriber()
+    if os.environ.get("USE_MOCK_TRANSCRIBER", "false").lower() == "true":
+        return MockTranscriber()
+    raise RuntimeError("Configure WHISPER_MODEL or set USE_MOCK_TRANSCRIBER=true for demo mode")

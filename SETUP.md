@@ -2,6 +2,7 @@
 
 ## Prerequisites
 - Python 3.10+
+- FFmpeg on PATH (required to convert browser WebM/Ogg recordings for Whisper)
 - Node.js 18+ (for React Native/Flutter tooling as applicable)
 - PostgreSQL 15+ with TimescaleDB extension
 - Docker (recommended for ChromaDB + Postgres)
