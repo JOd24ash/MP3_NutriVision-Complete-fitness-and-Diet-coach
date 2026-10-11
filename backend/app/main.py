@@ -10,11 +10,15 @@ Run with: uvicorn app.main:app --reload   (see SETUP.md)
 
 import os
 from datetime import date, datetime, time, timedelta
+from pathlib import Path
 from typing import List, Optional
 
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load .env from the backend/ directory (one level above this file's app/ dir),
+# so it works regardless of the CWD from which uvicorn is launched.
+_env_path = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(dotenv_path=_env_path, override=True)
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile, status
 from fastapi.security import OAuth2PasswordBearer
@@ -220,12 +224,16 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
 def get_profile(user_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     require_self(user_id, current_user)
     profile = db.query(MedicalProfile).filter(MedicalProfile.user_id == user_id).first()
+    # Coerce JSON column values to plain list[str] — SQLite can occasionally
+    # return None when the default= didn't fire on an old row.
+    raw_allergies = profile.allergies if profile else None
+    raw_conditions = profile.conditions if profile else None
     return ProfileResponse(
         id=current_user.id,
         name=current_user.name,
         email=current_user.email,
-        allergies=(profile.allergies if profile else []) or [],
-        conditions=(profile.conditions if profile else []) or [],
+        allergies=[str(v) for v in raw_allergies] if isinstance(raw_allergies, list) else [],
+        conditions=[str(v) for v in raw_conditions] if isinstance(raw_conditions, list) else [],
     )
 
 
@@ -249,8 +257,8 @@ def update_profile(
         id=current_user.id,
         name=current_user.name,
         email=current_user.email,
-        allergies=profile.allergies,
-        conditions=profile.conditions,
+        allergies=[str(v) for v in profile.allergies] if isinstance(profile.allergies, list) else [],
+        conditions=[str(v) for v in profile.conditions] if isinstance(profile.conditions, list) else [],
     )
 
 
@@ -267,7 +275,17 @@ def create_manual_meal(payload: ManualMealCreateRequest, db: Session = Depends(g
         raise HTTPException(422, "Invalid meal type")
     from .nutrition.models import FoodItemInput
     profile = db.query(MedicalProfile).filter(MedicalProfile.user_id == current_user.id).first()
-    rows = evaluate_meal([compute_item_nutrition(FoodItemInput(food_label=payload.food_label, estimated_grams=payload.est_grams))], profile_to_schema(profile))
+
+    item_inputs = []
+    if payload.items and len(payload.items) > 0:
+        for it in payload.items:
+            item_inputs.append(compute_item_nutrition(FoodItemInput(food_label=it.food_label, estimated_grams=it.est_grams)))
+    elif payload.food_label and payload.est_grams:
+        item_inputs.append(compute_item_nutrition(FoodItemInput(food_label=payload.food_label, estimated_grams=payload.est_grams)))
+    else:
+        raise HTTPException(422, "Must provide food items")
+
+    rows = evaluate_meal(item_inputs, profile_to_schema(profile))
     meal = persist_meal(db, current_user.id, MealSource.manual, rows)
     meal.meal_type = payload.meal_type
     meal.confirmed = "true"
@@ -291,7 +309,7 @@ async def log_meal_photo(
         raise HTTPException(status_code=413, detail="Image must be between 1 byte and 10 MB")
 
     try:
-        detections = get_detector().detect(image_bytes)
+        detections = get_detector().detect(image_bytes, filename=image.filename)
         food_items = estimate_meal_from_detections(detections, reference_object_px, reference_object_real_cm)
     except (RuntimeError, ValueError) as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
@@ -585,13 +603,16 @@ def daily_summary(user_id: str, date: date, db: Session = Depends(get_db), curre
     from .fitness.activities import calories_burned
     from .fitness.calculator import targets
     goal = db.get(FitnessGoal, user_id)
-    if not goal: raise HTTPException(400, "Set goals first")
     start, end = datetime.combine(date, time.min), datetime.combine(date + timedelta(days=1), time.min)
     meals = db.query(MealLog).filter(MealLog.user_id == user_id, MealLog.logged_at >= start, MealLog.logged_at < end, MealLog.confirmed == "true").all()
     consumed = {"calories": sum(item.calories or 0 for meal in meals for item in meal.items), "protein_g": sum(item.protein_g or 0 for meal in meals for item in meal.items), "carbs_g": sum(item.carbs_g or 0 for meal in meals for item in meal.items), "fat_g": sum(item.fat_g or 0 for meal in meals for item in meal.items)}
     activities = db.query(ActivityLog).filter(ActivityLog.user_id == user_id, ActivityLog.logged_at >= start, ActivityLog.logged_at < end).all()
-    burned = sum(calories_burned(item.activity_type, item.intensity, item.duration_minutes, goal.weight_kg) for item in activities)
-    target = targets(goal.age, goal.sex, goal.height_cm, goal.weight_kg, goal.activity_level, goal.goal)
+    if goal:
+        burned = sum(calories_burned(item.activity_type, item.intensity, item.duration_minutes, goal.weight_kg) for item in activities)
+        target = targets(goal.age, goal.sex, goal.height_cm, goal.weight_kg, goal.activity_level, goal.goal)
+    else:
+        burned = sum(calories_burned(item.activity_type, item.intensity, item.duration_minutes, 70.0) for item in activities)
+        target = {"calories": 2000, "protein_g": 60.0, "carbs_g": 250.0, "fat_g": 55.0}
     return {"date": str(date), "target": target, "consumed": {key: round(value, 1) for key, value in consumed.items()}, "burned": burned, "remaining": {"calories": round(target["calories"] + burned - consumed["calories"]), "protein_g": round(target["protein_g"] - consumed["protein_g"], 1), "carbs_g": round(target["carbs_g"] - consumed["carbs_g"], 1), "fat_g": round(target["fat_g"] - consumed["fat_g"], 1)}}
 
 @app.get(f"{API_PREFIX}/users/{{user_id}}/meal-suggestions")
@@ -602,12 +623,12 @@ def meal_suggestions(user_id: str, db: Session = Depends(get_db), current_user: 
     from .nutrition.food_data import FOODS
     from .guardrails.database import get_food_health_profile
     goal = db.get(FitnessGoal, user_id)
-    if not goal: raise HTTPException(400, "Set goals first")
+    diet_pref = goal.diet_preference if goal else "veg"
     options = []
     for food in FOODS.values():
-        if goal.diet_preference == "vegan" and food["diet"] != "vegan": continue
-        if goal.diet_preference == "veg" and food["diet"] not in {"veg", "vegan"}: continue
-        if goal.diet_preference == "eggetarian" and food["diet"] not in {"veg", "vegan", "eggetarian"}: continue
+        if diet_pref == "vegan" and food["diet"] != "vegan": continue
+        if diet_pref == "veg" and food["diet"] not in {"veg", "vegan"}: continue
+        if diet_pref == "eggetarian" and food["diet"] not in {"veg", "vegan", "eggetarian"}: continue
         if profile and set(food["allergens"]).intersection(profile.allergies or []): continue
         options.append({"food_label": food["label"], "display_name": food["display_name"], "serving_g": food["serving_g"], "reason": "Matches your diet preference and has no declared allergen conflict."})
     return options[:3]

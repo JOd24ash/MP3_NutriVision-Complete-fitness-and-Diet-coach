@@ -18,7 +18,7 @@ export const PlateCanvas = ({
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Layers size={16} color="var(--emerald-400)" />
           <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-            YOLO26n-Seg Detection Canvas
+            YOLOv8-Seg Detection Canvas
           </span>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>

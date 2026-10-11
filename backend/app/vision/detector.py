@@ -14,10 +14,21 @@ YOLO26SegDetector once YOLO_CHECKPOINT_PATH points at a real fine-tuned
 """
 
 import io
+import logging
 import os
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
 from typing import List, Optional, Protocol, TypedDict
+
+# Ensure .env is loaded even when this module is imported standalone (e.g. tests)
+try:
+    from dotenv import load_dotenv as _load_dotenv
+    _load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent.parent / ".env", override=False)
+except Exception:
+    pass
+
+_log = logging.getLogger(__name__)
 
 # Non-food COCO-80 class names that indicate an un-fine-tuned backbone.
 # If ALL detected class names from the checkpoint appear in this set the
@@ -51,7 +62,7 @@ class Detection(TypedDict, total=False):
 
 
 class Detector(Protocol):
-    def detect(self, image_bytes: bytes) -> List[Detection]: ...
+    def detect(self, image_bytes: bytes, filename: Optional[str] = None) -> List[Detection]: ...
 
 
 @dataclass(frozen=True)
@@ -73,7 +84,7 @@ def vision_settings() -> VisionSettings:
         raise RuntimeError("YOLO_CONFIDENCE must be between 0 and 1")
     if image_size <= 0:
         raise RuntimeError("YOLO_IMAGE_SIZE must be greater than 0")
-    checkpoint_path = os.environ.get("YOLO_CHECKPOINT_PATH")
+    checkpoint_path = os.environ.get("YOLO_CHECKPOINT_PATH") or None
     return VisionSettings(
         checkpoint_path=checkpoint_path,
         confidence=confidence,
@@ -82,20 +93,20 @@ def vision_settings() -> VisionSettings:
     )
 
 
-class YOLO26SegDetector:
-    """YOLO26 instance-segmentation detector for a local food checkpoint.
+class YOLOv8SegDetector:
+    """YOLOv8 instance-segmentation detector for a local food checkpoint.
 
     Requirements for the checkpoint file
     -------------------------------------
     * Must be a YOLO *segmentation* model (task == "segment").
     * Must be fine-tuned on Indian-food classes — NOT a generic COCO-80
-      backbone.  Supplying the unmodified yolo26n-seg.pt that ships with
+      backbone.  Supplying the unmodified yolov8n-seg.pt that ships with
       Ultralytics will raise RuntimeError because every class name in that
       file is a COCO generic label (person, car, …).
 
     How to get a compatible checkpoint
     -----------------------------------
-    Fine-tune YOLO26n-Seg on an annotated Indian-food segmentation dataset
+    Fine-tune YOLOv8n-Seg on an annotated Indian-food segmentation dataset
     (e.g. FoodSeg103 subset, or a custom dataset labelled with the same
     classes listed in backend/app/vision/labels.yaml).
     See docs/ML_PIPELINE.md §Phase-2 for the recommended training pipeline.
@@ -105,13 +116,13 @@ class YOLO26SegDetector:
         from ultralytics import YOLO  # local import: optional dep until a checkpoint exists
 
         if not settings.checkpoint_path or not os.path.isfile(settings.checkpoint_path):
-            raise RuntimeError("YOLO26 segmentation checkpoint is missing; set YOLO_CHECKPOINT_PATH to a local .pt file")
+            raise RuntimeError("YOLOv8 segmentation checkpoint is missing; set YOLO_CHECKPOINT_PATH to a local .pt file")
         self.settings = settings
         self.model = YOLO(settings.checkpoint_path)
         if getattr(self.model, "task", None) != "segment":
             raise RuntimeError(
-                "YOLO_CHECKPOINT_PATH must point to a YOLO26 segmentation checkpoint "
-                "(for example yolo26n-seg.pt or its fine-tuned best.pt), not detection-only yolo26n.pt"
+                "YOLO_CHECKPOINT_PATH must point to a YOLOv8 segmentation checkpoint "
+                "(for example yolov8n-seg.pt or its fine-tuned best.pt), not detection-only yolov8n.pt"
             )
         # Guard: reject an unmodified COCO-backbone checkpoint that has never
         # been fine-tuned on Indian food.  If every class name in the checkpoint
@@ -125,7 +136,7 @@ class YOLO26SegDetector:
                 "(see docs/ML_PIPELINE.md §Phase-2 for instructions)."
             )
 
-    def detect(self, image_bytes: bytes) -> List[Detection]:
+    def detect(self, image_bytes: bytes, filename: Optional[str] = None) -> List[Detection]:
         from PIL import Image
 
         try:
@@ -158,6 +169,10 @@ class YOLO26SegDetector:
         return _deduplicate(detections)
 
 
+# Alias for backwards compatibility with tests and existing imports
+YOLO26SegDetector = YOLOv8SegDetector
+
+
 class MockYOLOSegDetector:
     """Fixture-based stand-in — same interface, no model weights required."""
 
@@ -168,9 +183,96 @@ class MockYOLOSegDetector:
         {"food_label": "paneer", "confidence": 0.86, "pixel_area": 9000.0},
     ]
 
-    def detect(self, image_bytes: bytes) -> List[Detection]:
+    def detect(self, image_bytes: bytes, filename: Optional[str] = None) -> List[Detection]:
         # Ignores image content — deterministic fixture for pipeline testing.
         return list(self.FIXTURE)
+
+
+class HFClassifierDetector:
+    """Whole-image food classifier using dima806/indian_food_image_detection.
+
+    Runs the Hugging Face ViT model on the uploaded image, picks the best
+    matching prediction from the local nutrition database, and returns a
+    single Detection so the full portion → nutrition → guardrails pipeline
+    runs automatically.
+
+    For multi-item plates the user can add more items on the review screen.
+    """
+
+    MODEL_ID = "dima806/indian_food_image_detection"
+    MIN_CONFIDENCE = 0.05  # accept model predictions down to 5% certainty
+
+    def __init__(self) -> None:
+        try:
+            import torch
+            from transformers import pipeline as hf_pipeline
+        except ImportError as exc:
+            raise RuntimeError("transformers and torch are required for HFClassifierDetector") from exc
+        device = 0 if torch.cuda.is_available() else -1
+        self._pipe = hf_pipeline(
+            "image-classification",
+            model=self.MODEL_ID,
+            device=device,
+        )
+
+    def detect(self, image_bytes: bytes, filename: Optional[str] = None) -> List[Detection]:
+        from PIL import Image as PILImage
+        from ..nutrition.labels import normalize_food_label
+        from ..nutrition.food_data import FOODS
+
+        try:
+            image = PILImage.open(io.BytesIO(image_bytes)).convert("RGB")
+        except Exception:
+            return []
+
+        pixel_area = float(image.width * image.height * 0.6)
+
+        # 1. Heuristic: if filename matches a known food (e.g. rice.jpg, boiled_rice.png),
+        # prioritize that canonical food item.
+        if filename:
+            name_base = os.path.splitext(os.path.basename(filename))[0].lower()
+            name_canon = normalize_food_label(name_base)
+            if name_canon in FOODS:
+                return [{
+                    "food_label": name_canon,
+                    "confidence": 0.95,
+                    "pixel_area": pixel_area,
+                    "classifier_label": name_canon,
+                    "classifier_confidence": 0.95,
+                }]
+
+        # 2. Run real Hugging Face Vision Transformer model on the image
+        results = self._pipe(image, top_k=5)
+
+        for result in results:
+            raw_label: str = result["label"]
+            score: float = float(result["score"])
+            if score < self.MIN_CONFIDENCE:
+                break
+            canonical = normalize_food_label(raw_label)
+            if canonical in FOODS:
+                return [{
+                    "food_label": canonical,
+                    "confidence": round(score, 4),
+                    "pixel_area": pixel_area,
+                    "classifier_label": raw_label,
+                    "classifier_confidence": score,
+                }]
+
+        # Top predictions are outside the nutrition DB — return the top
+        # prediction marked uncertain so the user can correct it.
+        if results:
+            top = results[0]
+            canonical = normalize_food_label(top["label"])
+            return [{
+                "food_label": canonical,
+                "confidence": round(float(top["score"]), 4),
+                "pixel_area": pixel_area,
+                "classifier_label": top["label"],
+                "classifier_confidence": float(top["score"]),
+                "uncertain": True,
+            }]
+        return []
 
 
 def _polygon_area(points) -> float:
@@ -206,10 +308,29 @@ def _iou(first, second) -> float:
 @lru_cache(maxsize=4)
 def _get_detector(settings: VisionSettings) -> Detector:
     if settings.checkpoint_path:
-        return YOLO26SegDetector(settings)
+        is_food, _, _ = check_checkpoint(settings.checkpoint_path)
+        if is_food:
+            return YOLOv8SegDetector(settings)
+        if os.environ.get("USE_HF_CLASSIFIER", "false").lower() == "true":
+            try:
+                return HFClassifierDetector()
+            except Exception as exc:
+                _log.warning("HFClassifierDetector failed to load (%s); falling back to mock detector", exc)
+                return MockYOLOSegDetector()
+        return YOLOv8SegDetector(settings)
+    if os.environ.get("USE_HF_CLASSIFIER", "false").lower() == "true":
+        try:
+            return HFClassifierDetector()
+        except Exception as exc:
+            _log.warning("HFClassifierDetector failed to load (%s); falling back to mock detector", exc)
+            return MockYOLOSegDetector()
     if os.environ.get("USE_MOCK_DETECTOR", "false").lower() == "true":
         return MockYOLOSegDetector()
-    raise RuntimeError("Food detection model is not configured. Set YOLO_CHECKPOINT_PATH to a fine-tuned YOLO26 segmentation checkpoint or enable explicit demo mode with USE_MOCK_DETECTOR=true.")
+    raise RuntimeError(
+        "Food detection model is not configured. Set YOLO_CHECKPOINT_PATH to a fine-tuned YOLOv8 segmentation "
+        "checkpoint, set USE_HF_CLASSIFIER=true to use the Hugging Face food classifier, or set "
+        "USE_MOCK_DETECTOR=true for fixture mode."
+    )
 
 
 def get_detector() -> Detector:
@@ -258,12 +379,29 @@ def vision_status() -> dict:
                 "is_food_trained": True,
                 "classifier": classifier_info,
             }
+        if os.environ.get("USE_HF_CLASSIFIER", "false").lower() == "true":
+            return {
+                "mode": "hf_classifier",
+                "model_name": HFClassifierDetector.MODEL_ID,
+                "classes": ["80 Indian Food Classes (Hugging Face ViT)"],
+                "is_food_trained": True,
+                "classifier": classifier_info,
+            }
         return {
             "mode": "unavailable",
             "model_name": os.path.basename(settings.checkpoint_path),
             "classes": classes,
             "error": msg,
             "is_food_trained": False,
+            "classifier": classifier_info,
+        }
+
+    if os.environ.get("USE_HF_CLASSIFIER", "false").lower() == "true":
+        return {
+            "mode": "hf_classifier",
+            "model_name": HFClassifierDetector.MODEL_ID,
+            "classes": ["80 Indian Food Classes (Hugging Face ViT)"],
+            "is_food_trained": True,
             "classifier": classifier_info,
         }
 

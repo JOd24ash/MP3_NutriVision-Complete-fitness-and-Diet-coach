@@ -72,14 +72,20 @@ def get_classifier() -> IndianFoodClassifier | None:
 
 def refine_detection(image, detection: dict) -> dict:
     """Replace a region label only with a confident nutrition-catalog match."""
-    classifier = get_classifier()
+    try:
+        classifier = get_classifier()
+    except Exception:
+        return detection
     if classifier is None or not detection.get("bbox"):
         return detection
     x1, y1, x2, y2 = (round(value) for value in detection["bbox"])
     crop = image.crop((max(0, x1), max(0, y1), min(image.width, x2), min(image.height, y2)))
     if crop.width < 2 or crop.height < 2:
         return detection
-    label, score = classifier.classify(crop)
+    try:
+        label, score = classifier.classify(crop)
+    except Exception:
+        return detection
     canonical = normalize_food_label(label)
     result = {**detection, "classifier_label": label, "classifier_confidence": score}
     if score >= classifier.settings.confidence and canonical in FOODS:

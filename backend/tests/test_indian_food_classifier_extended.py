@@ -256,6 +256,7 @@ class TestYOLO26SegDetectorCOCOGuard:
         import app.vision.detector as mod
         monkeypatch.delenv("USE_MOCK_DETECTOR", raising=False)
         monkeypatch.delenv("YOLO_CHECKPOINT_PATH", raising=False)
+        monkeypatch.delenv("USE_HF_CLASSIFIER", raising=False)
         mod._get_detector.cache_clear()
         with pytest.raises(RuntimeError, match="not configured"):
             mod.get_detector()
@@ -265,6 +266,7 @@ class TestYOLO26SegDetectorCOCOGuard:
         import app.vision.detector as mod
         monkeypatch.setattr("app.vision.detector.os.path.isfile", lambda p: True)
         monkeypatch.setenv("YOLO_CHECKPOINT_PATH", "fake_coco.pt")
+        monkeypatch.delenv("USE_HF_CLASSIFIER", raising=False)
 
         class COCOSegYOLO:
             task = "segment"
@@ -301,6 +303,7 @@ class TestYOLO26SegDetectorCOCOGuard:
         import app.vision.detector as mod
         monkeypatch.delenv("YOLO_CHECKPOINT_PATH", raising=False)
         monkeypatch.setenv("USE_MOCK_DETECTOR", "true")
+        monkeypatch.delenv("USE_HF_CLASSIFIER", raising=False)
         status = mod.vision_status()
         assert status["mode"] == "mock"
         assert status["model_name"] == "fixture"
@@ -310,6 +313,7 @@ class TestYOLO26SegDetectorCOCOGuard:
         import app.vision.detector as mod
         monkeypatch.delenv("YOLO_CHECKPOINT_PATH", raising=False)
         monkeypatch.delenv("USE_MOCK_DETECTOR", raising=False)
+        monkeypatch.delenv("USE_HF_CLASSIFIER", raising=False)
         status = mod.vision_status()
         assert status["mode"] == "unavailable"
         assert status["model_name"] is None

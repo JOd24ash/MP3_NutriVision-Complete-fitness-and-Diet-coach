@@ -15,7 +15,9 @@ import {
   Check,
   Edit2,
   Trash2,
-  AlertTriangle
+  AlertTriangle,
+  Plus,
+  Scale
 } from 'lucide-react';
 
 export const PhotoScanner = () => {
@@ -40,6 +42,47 @@ export const PhotoScanner = () => {
   const [editGrams, setEditGrams] = useState(100);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
+
+  // Manual addition state for missing items
+  const [isAddingItem, setIsAddingItem] = useState(false);
+  const [newItemLabel, setNewItemLabel] = useState('');
+  const [newItemGrams, setNewItemGrams] = useState(150);
+
+  // Weight entry state for user-specified portions
+  const [showWeightEntry, setShowWeightEntry] = useState(false);
+  const [weightInputs, setWeightInputs] = useState({});
+  const [isApplyingWeights, setIsApplyingWeights] = useState(false);
+
+  // Piece-based foods configuration (where users count pieces 1, 2, 3... instead of weighing grams)
+  const PIECE_FOOD_WEIGHTS = {
+    chapati: { name: 'chapati', grams: 40, emoji: '🫓' },
+    roti: { name: 'roti', grams: 40, emoji: '🫓' },
+    phulka: { name: 'phulka', grams: 35, emoji: '🫓' },
+    puri: { name: 'puri', grams: 35, emoji: '🫓' },
+    poori: { name: 'poori', grams: 35, emoji: '🫓' },
+    paratha: { name: 'paratha', grams: 80, emoji: '🫓' },
+    naan: { name: 'naan', grams: 90, emoji: '🫓' },
+    bhatura: { name: 'bhatura', grams: 75, emoji: '🫓' },
+    idli: { name: 'idli', grams: 45, emoji: '⚪' },
+    vada: { name: 'vada', grams: 50, emoji: '🍩' },
+    samosa: { name: 'samosa', grams: 75, emoji: '🥟' },
+    egg: { name: 'egg', grams: 50, emoji: '🥚' },
+    dosa: { name: 'dosa', grams: 80, emoji: '🥞' },
+    gulab_jamun: { name: 'gulab jamun', grams: 40, emoji: '🍬' },
+    laddu: { name: 'laddu', grams: 45, emoji: '🟡' },
+    ladoo: { name: 'ladoo', grams: 45, emoji: '🟡' },
+  };
+
+  const getPieceFoodInfo = (foodLabel) => {
+    if (!foodLabel) return null;
+    const lower = foodLabel.toLowerCase().replace(/_/g, ' ').trim();
+    for (const [key, info] of Object.entries(PIECE_FOOD_WEIGHTS)) {
+      if (lower === key || lower.includes(key) || key.includes(lower)) {
+        return info;
+      }
+    }
+    return null;
+  };
 
   // Helper to format meal items for the UI
   const formatMealItems = (meal) => {
@@ -129,18 +172,6 @@ export const PhotoScanner = () => {
       return;
     }
 
-    // Optional reference object measurement with safe fallback
-    const refPxInput = window.prompt('Optional: Reference object width in pixels (or leave blank to use standard portion sizes):');
-    let referencePixels = null;
-    let referenceCm = null;
-    if (refPxInput && Number(refPxInput) > 0) {
-      const refCmInput = window.prompt('Actual width of reference object in cm (e.g. 8.5 for card, 2.5 for coin):');
-      if (refCmInput && Number(refCmInput) > 0) {
-        referencePixels = Number(refPxInput);
-        referenceCm = Number(refCmInput);
-      }
-    }
-
     const reader = new FileReader();
     reader.onload = () => {
       setPlateImage(reader.result);
@@ -151,29 +182,63 @@ export const PhotoScanner = () => {
     setDetectedItems([]);
     setActiveMealLog(null);
     setEditingItemId(null);
+    setShowWeightEntry(false);
+    setWeightInputs({});
     setIsAnalyzing(true);
     try {
       const form = new FormData();
       form.append('image', file);
       form.append('user_id', user.id);
-      if (referencePixels && referenceCm) {
-        form.append('reference_object_px', referencePixels);
-        form.append('reference_object_real_cm', referenceCm);
-      }
       const meal = await api.meals.logPhoto(form);
       const items = formatMealItems(meal);
-      setDetectedItems(items);
       setActiveMealLog(meal);
-      showToast?.(
-        meal.needs_manual_review
-          ? 'Some items need review — please verify food labels before confirming.'
-          : `Found ${items.length} item${items.length !== 1 ? 's' : ''}. Review and confirm to save.`,
-        'success'
-      );
+      setDetectedItems(items);
+      const initialWeights = {};
+      meal.items.forEach(item => { initialWeights[item.id] = ''; });
+      setWeightInputs(initialWeights);
+      if (meal.items && meal.items.length > 0) {
+        setShowWeightEntry(true);
+        showToast?.(
+          `Found ${items.length} item${items.length !== 1 ? 's' : ''}! Please enter the weight (in grams) for each item.`,
+          'info'
+        );
+      } else {
+        showToast?.('No food items detected. You can add items manually.', 'warning');
+      }
     } catch (error) {
       showToast?.(error.message || 'Photo recognition failed.', 'danger');
     } finally {
       setIsAnalyzing(false);
+      if (e.target) {
+        e.target.value = '';
+      }
+    }
+  };
+
+  const handleApplyWeights = async () => {
+    if (!activeMealLog?.meal_log_id || !activeMealLog?.items?.length) return;
+    setIsApplyingWeights(true);
+    try {
+      const patchPromises = activeMealLog.items.map(item => {
+        const enteredVal = weightInputs[item.id];
+        const grams = enteredVal !== '' && enteredVal !== undefined
+          ? Math.max(1, Number(enteredVal))
+          : (item.est_grams ?? 100);
+        return api.meals.patchItem(activeMealLog.meal_log_id, item.id, {
+          confirmed_grams: grams,
+          est_grams: grams,
+        });
+      });
+      await Promise.all(patchPromises);
+      const updated = await api.meals.get(activeMealLog.meal_log_id);
+      setActiveMealLog(updated);
+      setDetectedItems(formatMealItems(updated));
+      setShowWeightEntry(false);
+      showToast?.('Weights applied! Nutrition calculated for your portion sizes.', 'success');
+    } catch (err) {
+      showToast?.(err.message || 'Failed to update item weights', 'danger');
+    } finally {
+      setIsApplyingWeights(false);
     }
   };
 
@@ -215,6 +280,28 @@ export const PhotoScanner = () => {
       showToast?.('False detection removed from meal.', 'info');
     } catch (err) {
       showToast?.(err.message || 'Failed to remove item', 'danger');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleAddNewItem = async (foodLabel = newItemLabel, grams = newItemGrams) => {
+    if (!activeMealLog?.meal_log_id || !foodLabel?.trim()) return;
+    setIsUpdating(true);
+    try {
+      await api.meals.addItem(activeMealLog.meal_log_id, {
+        food_label: foodLabel.trim(),
+        est_grams: Number(grams) || 100,
+      });
+      const updated = await api.meals.get(activeMealLog.meal_log_id);
+      setActiveMealLog(updated);
+      setDetectedItems(formatMealItems(updated));
+      setNewItemLabel('');
+      setNewItemGrams(150);
+      setIsAddingItem(false);
+      showToast?.(`Added "${foodLabel.trim()}" to plate and recalculated nutrition!`, 'success');
+    } catch (err) {
+      showToast?.(err.message || 'Failed to add food item', 'danger');
     } finally {
       setIsUpdating(false);
     }
@@ -282,7 +369,7 @@ export const PhotoScanner = () => {
               }}>
                 <RefreshCw size={14} />
               </div>
-              <span>{isAnalyzing ? 'Analyzing...' : 'Analyzing...'}</span>
+              <span>{isAnalyzing ? 'Analyzing...' : 'Ready'}</span>
             </div>
           </div>
 
@@ -389,17 +476,47 @@ export const PhotoScanner = () => {
                 </p>
               </div>
 
-              <span style={{
-                fontSize: '0.75rem',
-                fontWeight: 700,
-                background: '#f5f3ff',
-                color: '#7c3aed',
-                border: '1px solid #ddd6fe',
-                padding: '4px 12px',
-                borderRadius: 20
-              }}>
-                AI Analysis
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {activeMealLog && !activeMealLog.confirmed && !showWeightEntry && (
+                  <button
+                    onClick={() => {
+                      const currentWeights = {};
+                      activeMealLog.items.forEach(it => {
+                        currentWeights[it.id] = String(it.confirmed_grams || it.est_grams || '');
+                      });
+                      setWeightInputs(currentWeights);
+                      setShowWeightEntry(true);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '4px 10px',
+                      borderRadius: 16,
+                      border: '1px solid #bbf7d0',
+                      background: '#f0fdf4',
+                      color: '#15803d',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <Scale size={14} />
+                    <span>Adjust Weights</span>
+                  </button>
+                )}
+                <span style={{
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  background: '#f5f3ff',
+                  color: '#7c3aed',
+                  border: '1px solid #ddd6fe',
+                  padding: '4px 12px',
+                  borderRadius: 20
+                }}>
+                  AI Analysis
+                </span>
+              </div>
             </div>
 
             {/* Food items grid — 2-column card layout */}
@@ -421,6 +538,181 @@ export const PhotoScanner = () => {
                 <p style={{ margin: 0, fontSize: '0.82rem' }}>
                   {isAnalyzing ? 'This may take a few seconds.' : 'Results will appear here after recognition.'}
                 </p>
+              </div>
+            ) : showWeightEntry ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 12,
+                  padding: '12px 16px',
+                  background: '#f0fdf4',
+                  border: '1.5px solid #86efac',
+                  borderRadius: 12,
+                }}>
+                  <Scale size={20} style={{ color: '#16a34a', flexShrink: 0, marginTop: 2 }} />
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#14532d' }}>
+                      Enter Portion Weights (Grams)
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: '#166534', marginTop: 2 }}>
+                      We detected items on your plate! Enter the actual weight for each item so we calculate exact nutrition. (Values are not hardcoded).
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {detectedItems.map((item) => (
+                    <div
+                      key={item.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 12,
+                        padding: '14px 16px',
+                        borderRadius: 12,
+                        background: '#ffffff',
+                        border: '1.5px solid #e5e7eb',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      <div style={{ minWidth: 140, flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#111827', textTransform: 'capitalize' }}>
+                          {item.name}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span>AI estimate: ~{item.est_grams ?? 100}g</span>
+                          <span>•</span>
+                          <span style={{ color: item.confidence > 0.8 ? '#15803d' : '#b45309' }}>
+                            {Math.round((item.confidence || 0) * 100)}% match
+                          </span>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', background: '#f9fafb', border: '1.5px solid #d1d5db', borderRadius: 8, padding: '2px 8px' }}>
+                          <input
+                            type="number"
+                            min="1"
+                            max="2000"
+                            placeholder={String(item.est_grams ?? 100)}
+                            value={weightInputs[item.id] ?? ''}
+                            onChange={(e) => setWeightInputs(prev => ({ ...prev, [item.id]: e.target.value }))}
+                            style={{
+                              width: 72,
+                              padding: '6px 4px',
+                              border: 'none',
+                              background: 'transparent',
+                              fontSize: '0.95rem',
+                              fontWeight: 700,
+                              textAlign: 'center',
+                              outline: 'none',
+                              color: '#111827',
+                            }}
+                          />
+                          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#6b7280', marginLeft: 2 }}>g</span>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          {(() => {
+                            const pieceInfo = getPieceFoodInfo(item.food_label || item.name);
+                            if (pieceInfo) {
+                              return [1, 2, 3, 4].map(num => {
+                                const g = num * pieceInfo.grams;
+                                const isSel = weightInputs[item.id] === String(g);
+                                return (
+                                  <button
+                                    key={num}
+                                    type="button"
+                                    onClick={() => setWeightInputs(prev => ({ ...prev, [item.id]: String(g) }))}
+                                    style={{
+                                      padding: '4px 8px',
+                                      borderRadius: 6,
+                                      border: isSel ? '1.5px solid #16a34a' : '1px solid #bbf7d0',
+                                      background: isSel ? '#16a34a' : '#f0fdf4',
+                                      color: isSel ? '#ffffff' : '#15803d',
+                                      fontSize: '0.72rem',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                    }}
+                                    title={`${num} ${pieceInfo.name} (${g}g)`}
+                                  >
+                                    {num} {num === 1 ? 'pc' : 'pcs'}
+                                  </button>
+                                );
+                              });
+                            }
+                            return [50, 100, 150, 200].map(chipGrams => (
+                              <button
+                                key={chipGrams}
+                                type="button"
+                                onClick={() => setWeightInputs(prev => ({ ...prev, [item.id]: String(chipGrams) }))}
+                                style={{
+                                  padding: '4px 8px',
+                                  borderRadius: 6,
+                                  border: '1px solid #e5e7eb',
+                                  background: weightInputs[item.id] === String(chipGrams) ? '#16a34a' : '#f3f4f6',
+                                  color: weightInputs[item.id] === String(chipGrams) ? '#ffffff' : '#4b5563',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                {chipGrams}g
+                              </button>
+                            ));
+                          })()}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+                  <button
+                    onClick={handleApplyWeights}
+                    disabled={isApplyingWeights}
+                    style={{
+                      width: '100%',
+                      padding: '12px 18px',
+                      borderRadius: 12,
+                      border: 'none',
+                      background: '#16a34a',
+                      color: '#ffffff',
+                      fontWeight: 700,
+                      fontSize: '0.92rem',
+                      cursor: isApplyingWeights ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      boxShadow: '0 4px 12px rgba(22, 163, 74, 0.25)',
+                      opacity: isApplyingWeights ? 0.75 : 1,
+                    }}
+                  >
+                    <Scale size={18} />
+                    <span>{isApplyingWeights ? 'Calculating Nutrition...' : 'Calculate Nutrition with Entered Weights'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowWeightEntry(false)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#6b7280',
+                      fontSize: '0.82rem',
+                      cursor: 'pointer',
+                      padding: '4px',
+                      textAlign: 'center',
+                      textDecoration: 'underline',
+                    }}
+                  >
+                    Skip — keep AI estimated portions
+                  </button>
+                </div>
               </div>
             ) : (
             <div className="scanner-items-grid">
@@ -468,6 +760,38 @@ export const PhotoScanner = () => {
                             outline: 'none',
                           }}
                         />
+                        {(() => {
+                          const pieceInfo = getPieceFoodInfo(editLabel);
+                          if (!pieceInfo) return null;
+                          return (
+                            <div style={{ display: 'flex', gap: 4, marginTop: 2 }}>
+                              {[1, 2, 3, 4, 5].map((num) => {
+                                const g = num * pieceInfo.grams;
+                                const isSelected = Number(editGrams) === g;
+                                return (
+                                  <button
+                                    key={num}
+                                    type="button"
+                                    onClick={() => setEditGrams(g)}
+                                    style={{
+                                      flex: 1,
+                                      padding: '4px 0',
+                                      borderRadius: 6,
+                                      border: isSelected ? '1.5px solid #16a34a' : '1px solid #d1d5db',
+                                      background: isSelected ? '#16a34a' : '#f9fafb',
+                                      color: isSelected ? '#ffffff' : '#374151',
+                                      fontSize: '0.72rem',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    {num} {num === 1 ? 'pc' : 'pcs'}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
                         <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
                           <button
                             onClick={() => handleSaveEdit(item.id)}
@@ -593,6 +917,246 @@ export const PhotoScanner = () => {
             </div>
             )}
 
+            {/* Add Missing Item Button / Form */}
+            {activeMealLog && !activeMealLog.confirmed && !showWeightEntry && (
+              <div style={{ marginTop: 14 }}>
+                {!isAddingItem ? (
+                  <button
+                    onClick={() => setIsAddingItem(true)}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      padding: '10px 14px',
+                      borderRadius: 10,
+                      border: '1.5px dashed #16a34a',
+                      background: '#f0fdf4',
+                      color: '#15803d',
+                      fontWeight: 700,
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <Plus size={16} />
+                    <span>+ Add Missing Item to Plate</span>
+                  </button>
+                ) : (
+                  <div style={{
+                    padding: '14px',
+                    borderRadius: 12,
+                    background: '#ffffff',
+                    border: '1.5px solid #86efac',
+                    boxShadow: '0 2px 10px rgba(0,0,0,0.06)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 10
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#15803d', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Plus size={16} /> Add Food Item to Plate
+                      </span>
+                      <button
+                        onClick={() => setIsAddingItem(false)}
+                        style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', padding: 2 }}
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+
+                    {/* Quick suggestion chips */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {[
+                        { label: 'Rice', grams: 150 },
+                        { label: 'Chapati', grams: 80 },
+                        { label: 'Dal', grams: 150 },
+                        { label: 'Puri', grams: 70 },
+                        { label: 'Salad', grams: 50 },
+                        { label: 'Dahi', grams: 100 },
+                      ].map((chip) => (
+                        <button
+                          key={chip.label}
+                          type="button"
+                          onClick={() => {
+                            setNewItemLabel(chip.label);
+                            setNewItemGrams(chip.grams);
+                          }}
+                          style={{
+                            padding: '4px 10px',
+                            borderRadius: 14,
+                            border: '1px solid #d1fae5',
+                            background: newItemLabel.toLowerCase() === chip.label.toLowerCase() ? '#16a34a' : '#f0fdf4',
+                            color: newItemLabel.toLowerCase() === chip.label.toLowerCase() ? '#ffffff' : '#15803d',
+                            fontSize: '0.74rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            transition: 'all 0.1s ease',
+                          }}
+                        >
+                          + {chip.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px', gap: 8 }}>
+                      <div>
+                        <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#4b5563', display: 'block', marginBottom: 3 }}>
+                          Food Name
+                        </label>
+                        <input
+                          type="text"
+                          value={newItemLabel}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setNewItemLabel(val);
+                            const p = getPieceFoodInfo(val);
+                            if (p && (!newItemGrams || newItemGrams === 150)) {
+                              setNewItemGrams(p.grams * 2);
+                            }
+                          }}
+                          placeholder="e.g. rice, roti, dal, puri"
+                          style={{
+                            width: '100%',
+                            boxSizing: 'border-box',
+                            padding: '7px 10px',
+                            borderRadius: 8,
+                            border: '1px solid #d1d5db',
+                            fontSize: '0.84rem',
+                            outline: 'none',
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#4b5563', display: 'block', marginBottom: 3 }}>
+                          Portion (g)
+                        </label>
+                        <input
+                          type="number"
+                          min="10"
+                          max="1000"
+                          value={newItemGrams}
+                          onChange={(e) => setNewItemGrams(e.target.value)}
+                          style={{
+                            width: '100%',
+                            boxSizing: 'border-box',
+                            padding: '7px 10px',
+                            borderRadius: 8,
+                            border: '1px solid #d1d5db',
+                            fontSize: '0.84rem',
+                            outline: 'none',
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Frequency / Pieces Selector for Chapati & piece-based foods */}
+                    {(() => {
+                      const pieceInfo = getPieceFoodInfo(newItemLabel);
+                      if (!pieceInfo) return null;
+                      return (
+                        <div style={{
+                          background: '#f0fdf4',
+                          border: '1.5px solid #86efac',
+                          borderRadius: 10,
+                          padding: '10px 12px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 6,
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#166534', display: 'flex', alignItems: 'center', gap: 5 }}>
+                              <span>{pieceInfo.emoji}</span> How many {pieceInfo.name}s? (Quantity: 1, 2, 3...)
+                            </span>
+                            <span style={{ fontSize: '0.72rem', color: '#15803d', fontWeight: 600 }}>
+                              ~{pieceInfo.grams}g each
+                            </span>
+                          </div>
+
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                            {[1, 2, 3, 4, 5, 6].map((num) => {
+                              const calculatedGrams = num * pieceInfo.grams;
+                              const isSelected = Number(newItemGrams) === calculatedGrams;
+                              return (
+                                <button
+                                  key={num}
+                                  type="button"
+                                  onClick={() => setNewItemGrams(calculatedGrams)}
+                                  style={{
+                                    flex: 1,
+                                    minWidth: 44,
+                                    padding: '7px 4px',
+                                    borderRadius: 8,
+                                    border: isSelected ? '2px solid #16a34a' : '1px solid #bbf7d0',
+                                    background: isSelected ? '#16a34a' : '#ffffff',
+                                    color: isSelected ? '#ffffff' : '#15803d',
+                                    fontWeight: 700,
+                                    fontSize: '0.82rem',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.12s ease',
+                                    boxShadow: isSelected ? '0 2px 6px rgba(22, 163, 74, 0.25)' : 'none',
+                                  }}
+                                >
+                                  {num} {num === 1 ? 'pc' : 'pcs'}
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          <div style={{ fontSize: '0.72rem', color: '#166534', display: 'flex', justifyContent: 'space-between' }}>
+                            <span>
+                              Selected: <strong>{Number(newItemGrams) > 0 ? `${Math.round(newItemGrams / pieceInfo.grams * 10) / 10} piece(s)` : ''}</strong>
+                            </span>
+                            <span>Total weight: <strong>{newItemGrams}g</strong></span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                      <button
+                        onClick={() => handleAddNewItem()}
+                        disabled={isUpdating || !newItemLabel.trim()}
+                        style={{
+                          flex: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6,
+                          padding: '8px 12px',
+                          borderRadius: 8,
+                          border: 'none',
+                          background: newItemLabel.trim() ? '#16a34a' : '#9ca3af',
+                          color: '#ffffff',
+                          fontWeight: 700,
+                          fontSize: '0.82rem',
+                          cursor: newItemLabel.trim() ? 'pointer' : 'not-allowed',
+                        }}
+                      >
+                        <Check size={14} />
+                        <span>Add & Calculate</span>
+                      </button>
+                      <button
+                        onClick={() => setIsAddingItem(false)}
+                        style={{
+                          padding: '8px 14px',
+                          borderRadius: 8,
+                          border: '1px solid #d1d5db',
+                          background: '#f9fafb',
+                          color: '#4b5563',
+                          fontWeight: 600,
+                          fontSize: '0.82rem',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Bottom Box: Total Nutrition (Estimated) */}

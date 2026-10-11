@@ -52,6 +52,19 @@ const authHeaders = () => {
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
+export const fetchWithAuth = async (url, options = {}) => {
+  const headers = {
+    ...authHeaders(),
+    ...(options.headers || {}),
+  };
+  const res = await fetch(url, { ...options, headers });
+  if (res.status === 401) {
+    removeToken();
+    window.dispatchEvent(new CustomEvent('nutrivision:unauthorized'));
+  }
+  return res;
+};
+
 // API Client
 export const api = {
   // Auth
@@ -114,9 +127,7 @@ export const api = {
       if (DEMO_MODE) {
         return getStoredUser();
       }
-      const res = await fetch(`${BASE_URL}/users/${userId}/profile`, {
-        headers: { ...authHeaders() }
-      });
+      const res = await fetchWithAuth(`${BASE_URL}/users/${userId}/profile`);
       if (!res.ok) throw new Error('Failed to fetch profile');
       return await res.json();
     },
@@ -128,10 +139,22 @@ export const api = {
         setStoredUser(updated);
         return updated;
       }
-      const res = await fetch(`${BASE_URL}/users/${userId}/profile`, {
+      const rawAllergies = Array.isArray(data.allergies)
+        ? data.allergies
+        : (data.allergy && data.allergy !== 'none' ? [data.allergy] : []);
+      const rawConditions = Array.isArray(data.conditions)
+        ? data.conditions
+        : (data.medical_condition && data.medical_condition !== 'none' ? [data.medical_condition] : []);
+
+      const payload = {
+        allergies: rawAllergies.filter(Boolean),
+        conditions: rawConditions.filter(Boolean)
+      };
+
+      const res = await fetchWithAuth(`${BASE_URL}/users/${userId}/profile`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify(data)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       });
       if (!res.ok) throw new Error('Failed to update medical profile');
       return await res.json();
@@ -140,22 +163,22 @@ export const api = {
 
   nutrition: {
     async search(query) {
-      const res = await fetch(`${BASE_URL}/nutrition/foods?query=${encodeURIComponent(query)}`, { headers: authHeaders() });
+      const res = await fetchWithAuth(`${BASE_URL}/nutrition/foods?query=${encodeURIComponent(query)}`);
       if (!res.ok) throw new Error('Food search is unavailable');
       return await res.json();
     }
   },
 
   fitness: {
-    async goals(userId) { const res = await fetch(`${BASE_URL}/users/${userId}/goals`, { headers: authHeaders() }); if (!res.ok) throw new Error('Set your goals to view progress'); return await res.json(); },
-    async summary(userId) { const date = new Date().toISOString().slice(0, 10); const res = await fetch(`${BASE_URL}/users/${userId}/daily-summary?date=${date}`, { headers: authHeaders() }); if (!res.ok) throw new Error('Set your goals to view progress'); return await res.json(); },
-    async suggestions(userId) { const res = await fetch(`${BASE_URL}/users/${userId}/meal-suggestions`, { headers: authHeaders() }); if (!res.ok) throw new Error('Suggestions unavailable'); return await res.json(); },
+    async goals(userId) { const res = await fetchWithAuth(`${BASE_URL}/users/${userId}/goals`); if (!res.ok) throw new Error('Set your goals to view progress'); return await res.json(); },
+    async summary(userId) { const date = new Date().toISOString().slice(0, 10); const res = await fetchWithAuth(`${BASE_URL}/users/${userId}/daily-summary?date=${date}`); if (!res.ok) throw new Error('Set your goals to view progress'); return await res.json(); },
+    async suggestions(userId) { const res = await fetchWithAuth(`${BASE_URL}/users/${userId}/meal-suggestions`); if (!res.ok) throw new Error('Suggestions unavailable'); return await res.json(); },
   },
 
   // Meals (Photo / Voice / Edit / Confirm)
   meals: {
     async createManual(data) {
-      const res = await fetch(`${BASE_URL}/meals/manual`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(data) });
+      const res = await fetchWithAuth(`${BASE_URL}/meals/manual`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
       if (!res.ok) throw new Error('Failed to start manual meal');
       return await res.json();
     },
@@ -176,9 +199,8 @@ export const api = {
           needs_manual_review: false
         };
       }
-      const res = await fetch(`${BASE_URL}/meals/photo`, {
+      const res = await fetchWithAuth(`${BASE_URL}/meals/photo`, {
         method: 'POST',
-        headers: { ...authHeaders() },
         body: formData
       });
       if (!res.ok) {
@@ -190,9 +212,8 @@ export const api = {
 
     async logVoice(formData) {
       if (DEMO_MODE) throw new Error('Voice logging is unavailable in demo mode');
-      const res = await fetch(`${BASE_URL}/meals/voice`, {
+      const res = await fetchWithAuth(`${BASE_URL}/meals/voice`, {
         method: 'POST',
-        headers: { ...authHeaders() },
         body: formData
       });
       if (!res.ok) {
@@ -204,18 +225,16 @@ export const api = {
 
     async get(mealLogId) {
       if (DEMO_MODE) throw new Error('Meal fetch is unavailable in demo mode');
-      const res = await fetch(`${BASE_URL}/meals/${mealLogId}`, {
-        headers: { ...authHeaders() }
-      });
+      const res = await fetchWithAuth(`${BASE_URL}/meals/${mealLogId}`);
       if (!res.ok) throw new Error('Failed to fetch meal');
       return await res.json();
     },
 
     async patchItem(mealLogId, itemId, data) {
       if (DEMO_MODE) throw new Error('Meal editing is unavailable in demo mode');
-      const res = await fetch(`${BASE_URL}/meals/${mealLogId}/items/${itemId}`, {
+      const res = await fetchWithAuth(`${BASE_URL}/meals/${mealLogId}/items/${itemId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       });
       if (!res.ok) throw new Error('Failed to update meal item');
@@ -223,21 +242,20 @@ export const api = {
     },
 
     async addItem(mealLogId, data) {
-      const res = await fetch(`${BASE_URL}/meals/${mealLogId}/items`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(data) });
+      const res = await fetchWithAuth(`${BASE_URL}/meals/${mealLogId}/items`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
       if (!res.ok) throw new Error('Failed to add meal item');
       return await res.json();
     },
 
     async deleteItem(mealLogId, itemId) {
-      const res = await fetch(`${BASE_URL}/meals/${mealLogId}/items/${itemId}`, { method: 'DELETE', headers: authHeaders() });
+      const res = await fetchWithAuth(`${BASE_URL}/meals/${mealLogId}/items/${itemId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to remove meal item');
     },
 
     async confirm(mealLogId) {
       if (DEMO_MODE) throw new Error('Meal confirmation is unavailable in demo mode');
-      const res = await fetch(`${BASE_URL}/meals/${mealLogId}/confirm`, {
-        method: 'POST',
-        headers: { ...authHeaders() }
+      const res = await fetchWithAuth(`${BASE_URL}/meals/${mealLogId}/confirm`, {
+        method: 'POST'
       });
       if (!res.ok) throw new Error('Failed to finalize meal log');
       return await res.json();
@@ -247,9 +265,7 @@ export const api = {
       if (DEMO_MODE) {
         return MOCK_HISTORY_MEALS;
       }
-      const res = await fetch(`${BASE_URL}/users/${userId}/meals`, {
-        headers: { ...authHeaders() }
-      });
+      const res = await fetchWithAuth(`${BASE_URL}/users/${userId}/meals`);
       if (!res.ok) throw new Error('Failed to load meal history');
       return await res.json();
     }
@@ -262,7 +278,7 @@ export const api = {
         return type ? MOCK_HEALTH_METRICS.filter(m => m.metric_type === type) : MOCK_HEALTH_METRICS;
       }
       const url = type ? `${BASE_URL}/users/${userId}/health-metrics?type=${type}` : `${BASE_URL}/users/${userId}/health-metrics`;
-      const res = await fetch(url, { headers: { ...authHeaders() } });
+      const res = await fetchWithAuth(url);
       if (!res.ok) throw new Error('Failed to load health metrics');
       return await res.json();
     },
@@ -279,9 +295,9 @@ export const api = {
         MOCK_HEALTH_METRICS.unshift(item);
         return item;
       }
-      const res = await fetch(`${BASE_URL}/users/${userId}/health-metrics`, {
+      const res = await fetchWithAuth(`${BASE_URL}/users/${userId}/health-metrics`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
       if (!res.ok) throw new Error('Failed to record biometric');
@@ -293,9 +309,9 @@ export const api = {
   chat: {
     async send(userId, message) {
       if (DEMO_MODE) throw new Error('Chat is unavailable in demo mode');
-      const res = await fetch(`${BASE_URL}/chat`, {
+      const res = await fetchWithAuth(`${BASE_URL}/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: userId, message })
       });
       if (!res.ok) {

@@ -16,7 +16,7 @@ export const AppProvider = ({ children }) => {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
-  // Poll / check backend once on mount
+  // Poll / check backend once on mount and listen for expired sessions
   useEffect(() => {
     const probe = async () => {
       const online = await checkBackendStatus();
@@ -24,6 +24,13 @@ export const AppProvider = ({ children }) => {
       setIsLiveMode(online);
     };
     probe();
+
+    const handleUnauthorized = () => {
+      setUser(null);
+      showToast('Your session has expired. Please sign in again.', 'danger');
+    };
+    window.addEventListener('nutrivision:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('nutrivision:unauthorized', handleUnauthorized);
   }, []);
 
   const showToast = (message, type = 'info') => {
