@@ -19,6 +19,7 @@ ultralytics>=8.4.0
 torch
 torchvision
 pillow
+transformers>=4.40
 
 # speech (optional until configured — app/speech falls back to a mock
 # transcriber without this)

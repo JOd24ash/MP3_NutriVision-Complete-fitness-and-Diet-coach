@@ -46,14 +46,19 @@ UNIT_DEFAULT_GRAMS: Dict[str, Dict[str, float]] = {
 }
 
 
-def get_portion_defaults(food_label: str) -> PortionDefaults:
+def get_portion_defaults(food_label: str) -> dict:
     key = normalize_food_label(food_label)
     food = FOODS.get(key)
     if food:
-        return {"height_cm": food.get("height_cm") or DEFAULT_HEIGHT_CM, "density_g_per_cm3": food.get("density_g_per_cm3") or DEFAULT_DENSITY_G_PER_CM3}
-    return PORTION_DB.get(
+        return {
+            "height_cm": food.get("height_cm") or DEFAULT_HEIGHT_CM,
+            "density_g_per_cm3": food.get("density_g_per_cm3") or DEFAULT_DENSITY_G_PER_CM3,
+            "serving_g": food.get("serving_g", 100.0),
+        }
+    defaults = PORTION_DB.get(
         key, {"height_cm": DEFAULT_HEIGHT_CM, "density_g_per_cm3": DEFAULT_DENSITY_G_PER_CM3}
     )
+    return {**defaults, "serving_g": 100.0}
 
 
 def get_unit_grams(food_label: str, unit: str) -> Optional[float]:

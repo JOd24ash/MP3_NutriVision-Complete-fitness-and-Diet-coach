@@ -18,8 +18,12 @@ from .database import get_portion_defaults, get_unit_grams
 
 
 def pixels_per_cm(reference_object_px: float, reference_object_real_cm: float) -> float:
+    if reference_object_real_cm is None or reference_object_px is None:
+        raise ValueError("Reference measurements must be provided")
     if reference_object_real_cm <= 0:
         raise ValueError("reference_object_real_cm must be > 0")
+    if reference_object_px <= 0:
+        raise ValueError("reference_object_px must be > 0")
     return reference_object_px / reference_object_real_cm
 
 
@@ -33,6 +37,10 @@ def estimate_grams_from_area(
     if px_per_cm <= 0:
         raise ValueError("px_per_cm must be > 0")
 
+    if pixel_area <= 0:
+        defaults = get_portion_defaults(food_label)
+        return float(defaults.get("serving_g", 100.0))
+
     area_cm2 = pixel_area / (px_per_cm ** 2)
     defaults = get_portion_defaults(food_label)
     volume_cm3 = area_cm2 * defaults["height_cm"]
@@ -42,22 +50,38 @@ def estimate_grams_from_area(
 
 def estimate_meal_from_detections(
     detections: List[dict],
-    reference_object_px: float,
-    reference_object_real_cm: float,
+    reference_object_px: Optional[float] = None,
+    reference_object_real_cm: Optional[float] = None,
 ) -> List[FoodItemInput]:
     """detections: list of {"food_label": str, "pixel_area": float, "confidence": float}
     (this is the shape the vision module's detector returns).
 
     Returns FoodItemInput objects ready to hand straight to
-    nutrition.calculator.compute_meal_nutrition().
+    nutrition.calculator.compute_meal_nutrition(). Handles missing or invalid
+    calibration inputs safely by falling back to catalog standard serving weights.
     """
-    px_per_cm = pixels_per_cm(reference_object_px, reference_object_real_cm)
+    px_per_cm: Optional[float] = None
+    if reference_object_px is not None and reference_object_real_cm is not None:
+        try:
+            px = float(reference_object_px)
+            cm = float(reference_object_real_cm)
+            if px > 0 and cm > 0:
+                px_per_cm = pixels_per_cm(px, cm)
+        except (ValueError, TypeError):
+            px_per_cm = None
+
     items: List[FoodItemInput] = []
     for d in detections:
-        grams = estimate_grams_from_area(d["pixel_area"], d["food_label"], px_per_cm)
+        food_label = d.get("food_label", "")
+        pixel_area = float(d.get("pixel_area") or 0.0)
+        if px_per_cm and px_per_cm > 0 and pixel_area > 0:
+            grams = estimate_grams_from_area(pixel_area, food_label, px_per_cm)
+        else:
+            defaults = get_portion_defaults(food_label)
+            grams = float(defaults.get("serving_g", 100.0))
         items.append(
             FoodItemInput(
-                food_label=d["food_label"],
+                food_label=food_label,
                 estimated_grams=grams,
                 confidence=d.get("confidence"),
             )

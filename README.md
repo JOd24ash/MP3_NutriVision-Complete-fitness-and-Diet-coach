@@ -10,7 +10,7 @@ AI-driven nutrition assistant for multi-item Indian meals — with food detectio
 |---|---|
 | Frontend | React 19 + Vite + Lucide Icons |
 | Backend | FastAPI (Python) |
-| Vision | YOLO26n-Seg + planned classification refinement |
+| Vision | YOLO26n-Seg; classification refinement is a future option |
 | Portion Estimation | Reference-object scaling + food density |
 | Nutrition DB | Curated reference database |
 | Guardrails | Allergen / health rule engine |
@@ -94,6 +94,8 @@ uvicorn app.main:app --reload
 | `DATABASE_URL` | DB connection string (default: `sqlite:///./nutrivision.db`) |
 | `JWT_SECRET_KEY` | Secret key for JWT auth — **change in production** |
 | `YOLO_CHECKPOINT_PATH` | Local path to a YOLO26 segmentation checkpoint; use a fine-tuned food `best.pt` in production |
+| `INDIAN_FOOD_CLASSIFIER_ENABLED` | Set `true` to refine YOLO regions with `dima806/indian_food_image_detection` (downloads lazily on first use) |
+| `INDIAN_FOOD_CLASSIFIER_CONFIDENCE` | Minimum classifier score required to replace a YOLO label (default: `0.60`) |
 | `YOLO_CONFIDENCE` | Minimum detection confidence (default: `0.25`) |
 | `YOLO_IMAGE_SIZE` | YOLO inference image size (default: `640`) |
 | `YOLO_DEVICE` | Optional Ultralytics device, e.g. `cpu`, `0`, or `cuda:0` |
@@ -102,6 +104,23 @@ uvicorn app.main:app --reload
 | `NUTRIVISION_LLM_MODEL` | LLM model name (default: `claude-sonnet-4-5`) |
 
 > Photos are processed locally by a mask-capable YOLO26 model. `yolo26n.pt` is detection-only and is rejected because portion estimation needs masks. The official `yolo26n-seg.pt` knows COCO classes only; fine-tune it on annotated Indian-food polygons before using the result for nutrition. Set `USE_MOCK_DETECTOR=true` only for explicit demo mode.
+
+> The optional `dima806/indian_food_image_detection` model is a whole-image classifier. NutriVision runs it only on YOLO segmentation crops; it cannot by itself detect every dish in a mixed meal. Labels below the configured confidence threshold or absent from the nutrition catalogue stay uncertain and require user correction.
+
+### Vision setup and validation
+
+The repository does not include model weights. Fine-tune `yolo26n-seg.pt`, copy the resulting food checkpoint outside Git (for example `checkpoints/best.pt`), and configure its local path before starting the backend. The app loads only that local file, so it does not download large weights at startup.
+
+```powershell
+cd backend
+pip install -r requirements.txt
+$env:YOLO_CHECKPOINT_PATH = "$PWD\..\checkpoints\best.pt"
+$env:YOLO_CONFIDENCE = "0.25"
+python -m pytest
+uvicorn app.main:app --reload
+```
+
+The photo API requires a known reference measurement in the image to estimate portions. Nutrition values are estimates; benchmark them against manually weighed plates before relying on them.
 
 ---
 

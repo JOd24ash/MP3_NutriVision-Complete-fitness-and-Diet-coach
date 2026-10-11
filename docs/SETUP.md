@@ -37,10 +37,13 @@ docker run -d --name nutrivision-chroma -p 8000:8000 chromadb/chroma
 
 ## Vision Model
 ```bash
-# YOLO26n-Seg — start from a pretrained checkpoint, fine-tune on custom data
-pip install ultralytics
+# The service accepts only a local YOLO26 segmentation checkpoint.
+# Fine-tune this COCO-pretrained model on polygon-annotated Indian-food data.
+pip install "ultralytics>=8.4.0"
 yolo segment train data=plate_dataset.yaml model=yolo26n-seg.pt epochs=100 imgsz=640
 ```
+
+Copy the resulting `runs/segment/train/weights/best.pt` to a local `checkpoints/` directory (ignored by Git). Do not configure detection-only `yolo26n.pt`: the API needs masks for portion estimation. The application does not download model weights on startup.
 
 ## Knowledge Base Ingestion (RAG)
 ```bash
@@ -63,3 +66,12 @@ ANTHROPIC_API_KEY=<optional chat-only key>
 - `scripts/seed_nutrition_reference.py` — populate `nutrition_reference` table
 - `scripts/eval_portion_accuracy.py` — compare estimated grams vs manually-weighed ground truth
 - `scripts/eval_rag_grounding.py` — spot-check chatbot answers against source citations
+
+## Verification
+```bash
+cd backend
+python -m pytest
+uvicorn app.main:app --reload
+```
+
+Use `USE_MOCK_DETECTOR=true` only for an explicit demo. It returns deterministic fixture detections and does not validate food-recognition accuracy.

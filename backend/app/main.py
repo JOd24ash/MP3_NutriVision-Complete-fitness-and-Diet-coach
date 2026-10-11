@@ -69,6 +69,7 @@ app.add_middleware(
 )
 
 API_PREFIX = "/api/v1"
+MAX_PHOTO_BYTES = 10 * 1024 * 1024
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{API_PREFIX}/auth/login")
 
 
@@ -153,12 +154,14 @@ def persist_meal(db: Session, user_id: str, source: MealSource, rows: List[MealI
 
 
 def meal_log_to_response(meal_log: MealLog, transcript: Optional[str] = None) -> MealResponse:
+    is_confirmed = meal_log.confirmed == "true"
     items_out = [
         MealItemOut(
             id=item.id,
             food_label=item.food_label,
             confidence=item.confidence,
             est_grams=item.est_grams,
+            confirmed_grams=item.est_grams if is_confirmed else None,
             calories=item.calories,
             protein_g=item.protein_g,
             carbs_g=item.carbs_g,
@@ -182,6 +185,7 @@ def meal_log_to_response(meal_log: MealLog, transcript: Optional[str] = None) ->
         total=total,
         transcript=transcript,
         needs_manual_review=needs_review,
+        confirmed=is_confirmed,
     )
 
 
@@ -266,29 +270,34 @@ def create_manual_meal(payload: ManualMealCreateRequest, db: Session = Depends(g
     rows = evaluate_meal([compute_item_nutrition(FoodItemInput(food_label=payload.food_label, estimated_grams=payload.est_grams))], profile_to_schema(profile))
     meal = persist_meal(db, current_user.id, MealSource.manual, rows)
     meal.meal_type = payload.meal_type
+    meal.confirmed = "true"
     db.commit(); db.refresh(meal)
     return meal_log_to_response(meal)
 
 @app.post(f"{API_PREFIX}/meals/photo", response_model=MealResponse)
 async def log_meal_photo(
     user_id: str = Form(...),
-    reference_object_px: float = Form(...),
-    reference_object_real_cm: float = Form(...),
+    reference_object_px: Optional[float] = Form(None),
+    reference_object_real_cm: Optional[float] = Form(None),
     image: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     require_self(user_id, current_user)
     image_bytes = await image.read()
+    if not image.content_type or not image.content_type.startswith("image/"):
+        raise HTTPException(status_code=415, detail="Upload an image file")
+    if not image_bytes or len(image_bytes) > MAX_PHOTO_BYTES:
+        raise HTTPException(status_code=413, detail="Image must be between 1 byte and 10 MB")
 
     try:
         detections = get_detector().detect(image_bytes)
-    except RuntimeError as error:
+        food_items = estimate_meal_from_detections(detections, reference_object_px, reference_object_real_cm)
+    except (RuntimeError, ValueError) as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
     if not detections:
         raise HTTPException(status_code=422, detail="No items detected in image")
 
-    food_items = estimate_meal_from_detections(detections, reference_object_px, reference_object_real_cm)
     nutrition_results = [compute_item_nutrition(i) for i in food_items]
 
     profile = db.query(MedicalProfile).filter(MedicalProfile.user_id == user_id).first()
@@ -350,7 +359,8 @@ def patch_meal_item(
     require_self(item.meal_log.user_id, current_user)
 
     food_label = payload.food_label or item.food_label
-    est_grams = payload.est_grams if payload.est_grams is not None else item.est_grams
+    new_grams = payload.confirmed_grams if payload.confirmed_grams is not None else payload.est_grams
+    est_grams = new_grams if new_grams is not None else item.est_grams
 
     from .nutrition.models import FoodItemInput
 
@@ -404,6 +414,17 @@ def delete_meal_item(meal_log_id: str, item_id: str, db: Session = Depends(get_d
     db.commit()
 
 
+@app.get(f"{API_PREFIX}/meals/{{meal_log_id}}", response_model=MealResponse)
+def get_meal(
+    meal_log_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    meal_log = db.get(MealLog, meal_log_id)
+    if meal_log is None:
+        raise HTTPException(status_code=404, detail="Meal log not found")
+    require_self(meal_log.user_id, current_user)
+    return meal_log_to_response(meal_log)
+
+
 @app.post(f"{API_PREFIX}/meals/{{meal_log_id}}/confirm", response_model=MealResponse)
 def confirm_meal(
     meal_log_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
@@ -426,11 +447,14 @@ def list_meals(
     user_id: str,
     from_: Optional[datetime] = None,
     to: Optional[datetime] = None,
+    confirmed_only: bool = True,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     require_self(user_id, current_user)
     query = db.query(MealLog).filter(MealLog.user_id == user_id)
+    if confirmed_only:
+        query = query.filter(MealLog.confirmed == "true")
     if from_:
         query = query.filter(MealLog.logged_at >= from_)
     if to:
@@ -446,6 +470,7 @@ def list_meals(
                 source=meal_log.source.value,
                 items=response.items,
                 total=response.total,
+                confirmed=(meal_log.confirmed == "true"),
             )
         )
     return summaries

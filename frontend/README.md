@@ -1,16 +1,24 @@
-# React + Vite
+# NutriVision Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React 19 + Vite frontend for the NutriVision dashboard, meal history, manual food entry, voice logging, health profile, and chat experience.
 
-Currently, two official plugins are available:
+## Run locally
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+npm install
+npm run dev
+```
 
-## React Compiler
+The development server runs on `http://localhost:5173` and proxies `/api` requests to the FastAPI backend on `http://localhost:8000`.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Build
 
-## Expanding the Oxlint configuration
+```bash
+npm run build
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+## Photo-scanner status
+
+The scanner UI currently renders sample presentation data. It does not yet upload an image to `/api/v1/meals/photo`. The backend endpoint requires an authenticated multipart request with `image`, `user_id`, `reference_object_px`, and `reference_object_real_cm`, and it needs a local fine-tuned YOLO26 segmentation checkpoint configured on the backend.
+
+The scanner must not present a COCO-pretrained YOLO26 model as recognition for Indian dishes; unsupported labels require manual review rather than nutritional values.

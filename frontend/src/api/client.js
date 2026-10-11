@@ -202,6 +202,15 @@ export const api = {
       return await res.json();
     },
 
+    async get(mealLogId) {
+      if (DEMO_MODE) throw new Error('Meal fetch is unavailable in demo mode');
+      const res = await fetch(`${BASE_URL}/meals/${mealLogId}`, {
+        headers: { ...authHeaders() }
+      });
+      if (!res.ok) throw new Error('Failed to fetch meal');
+      return await res.json();
+    },
+
     async patchItem(mealLogId, itemId, data) {
       if (DEMO_MODE) throw new Error('Meal editing is unavailable in demo mode');
       const res = await fetch(`${BASE_URL}/meals/${mealLogId}/items/${itemId}`, {

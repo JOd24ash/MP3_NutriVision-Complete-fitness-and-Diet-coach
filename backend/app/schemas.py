@@ -58,6 +58,7 @@ class ProfileUpdateRequest(BaseModel):
 class MealItemPatchRequest(BaseModel):
     food_label: Optional[str] = None
     est_grams: Optional[float] = None
+    confirmed_grams: Optional[float] = None
 
 
 class MealItemCreateRequest(BaseModel):
@@ -83,6 +84,7 @@ class MealItemOut(BaseModel):
     food_label: str
     confidence: Optional[float] = None
     est_grams: Optional[float] = None
+    confirmed_grams: Optional[float] = None
     calories: Optional[float] = None
     protein_g: Optional[float] = None
     carbs_g: Optional[float] = None
@@ -97,6 +99,7 @@ class MealResponse(BaseModel):
     total: MealTotalOut
     transcript: Optional[str] = None
     needs_manual_review: bool = False
+    confirmed: bool = False
 
 
 class MealLogSummary(BaseModel):
@@ -105,6 +108,7 @@ class MealLogSummary(BaseModel):
     source: str
     items: List[MealItemOut]
     total: MealTotalOut
+    confirmed: bool = True
 
 
 class HealthMetricIn(BaseModel):
