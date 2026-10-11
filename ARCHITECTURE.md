@@ -7,7 +7,7 @@
    ▼
 [FastAPI Gateway]
    │
-   ├─► Vision Service ──► YOLOv8-Seg (item detection + masks)
+   ├─► Vision Service ──► YOLO26n-Seg (item detection + masks)
    │                     └─► ResNet/EfficientNet (classification refinement)
    │
    ├─► Portion Service ──► reference-object / depth scaling ──► area → grams
@@ -40,7 +40,7 @@
 - Stateless request handling; persistence delegated to PostgreSQL
 
 ### 3. Vision Pipeline
-- **YOLOv8-Seg**: instance segmentation — detects each food item + pixel mask on the plate
+- **YOLO26n-Seg**: instance segmentation — detects each food item + pixel mask on the plate
 - **ResNet/EfficientNet**: secondary classification pass to refine ambiguous item labels
 - Output: list of `{item_label, mask, bounding_box, confidence}`
 

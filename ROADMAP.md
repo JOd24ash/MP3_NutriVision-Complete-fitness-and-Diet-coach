@@ -13,7 +13,7 @@
 
 ## Phase 2 — Multi-Item Vision Pipeline (Weeks 4–6)
 - Collect/annotate custom multi-item plate dataset (biggest data lift — start early)
-- Fine-tune YOLOv8-Seg for plate segmentation
+- Fine-tune YOLO26n-Seg for plate segmentation
 - Integrate ResNet/EfficientNet refinement pass
 - `/meals/photo` endpoint returns raw detections (portion estimation not yet wired in)
 
@@ -51,6 +51,6 @@
 - Performance/latency pass on inference endpoints
 
 ## Suggested Parallelization (3-person team)
-- **Person A**: Vision pipeline (YOLOv8-Seg, refinement, portion estimation)
+- **Person A**: Vision pipeline (YOLO26n-Seg, refinement, portion estimation)
 - **Person B**: RAG chatbot + guardrail layer + data model/backend
 - **Person C**: Mobile app + speech/voice pipeline integration

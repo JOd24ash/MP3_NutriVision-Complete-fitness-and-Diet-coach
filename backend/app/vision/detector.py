@@ -1,5 +1,5 @@
 """
-YOLOv8-Seg multi-item plate detection (ARCHITECTURE.md / ML_PIPELINE.md
+YOLO26n-Seg multi-item plate detection (ARCHITECTURE.md / ML_PIPELINE.md
 section 1). Real inference needs a checkpoint fine-tuned on an annotated
 multi-item plate dataset (ROADMAP.md Phase 2 — flagged there as the
 biggest data-collection lift, and not something this backend can produce
@@ -8,12 +8,15 @@ on its own).
 Until that checkpoint exists, MockYOLOSegDetector returns fixture
 detections so every downstream stage (portion -> nutrition -> guardrails
 -> chat) is runnable and testable end-to-end today. Swap it for
-YOLOSegDetector once YOLO_CHECKPOINT_PATH points at a real fine-tuned
+YOLO26SegDetector once YOLO_CHECKPOINT_PATH points at a real fine-tuned
 `.pt` file — nothing downstream needs to change, both implement the same
 `detect(image_bytes) -> List[Detection]` interface.
 """
 
+import io
 import os
+from dataclasses import dataclass
+from functools import lru_cache
 from typing import List, Optional, Protocol, TypedDict
 
 
@@ -27,21 +30,63 @@ class Detector(Protocol):
     def detect(self, image_bytes: bytes) -> List[Detection]: ...
 
 
-class YOLOSegDetector:
-    """Real detector — requires `ultralytics` and a fine-tuned checkpoint."""
+@dataclass(frozen=True)
+class VisionSettings:
+    checkpoint_path: str | None
+    confidence: float
+    image_size: int
+    device: str | None
 
-    def __init__(self, checkpoint_path: str):
+
+def vision_settings() -> VisionSettings:
+    """Read inference settings without downloading or loading a model."""
+    try:
+        confidence = float(os.environ.get("YOLO_CONFIDENCE", "0.25"))
+        image_size = int(os.environ.get("YOLO_IMAGE_SIZE", "640"))
+    except ValueError as error:
+        raise RuntimeError("YOLO_CONFIDENCE must be a number and YOLO_IMAGE_SIZE must be an integer") from error
+    if not 0 <= confidence <= 1:
+        raise RuntimeError("YOLO_CONFIDENCE must be between 0 and 1")
+    if image_size <= 0:
+        raise RuntimeError("YOLO_IMAGE_SIZE must be greater than 0")
+    checkpoint_path = os.environ.get("YOLO_CHECKPOINT_PATH")
+    return VisionSettings(
+        checkpoint_path=checkpoint_path,
+        confidence=confidence,
+        image_size=image_size,
+        device=os.environ.get("YOLO_DEVICE") or None,
+    )
+
+
+class YOLO26SegDetector:
+    """YOLO26 instance-segmentation detector for a local food checkpoint."""
+
+    def __init__(self, settings: VisionSettings):
         from ultralytics import YOLO  # local import: optional dep until a checkpoint exists
 
-        self.model = YOLO(checkpoint_path)
+        if not settings.checkpoint_path or not os.path.isfile(settings.checkpoint_path):
+            raise RuntimeError("YOLO26 segmentation checkpoint is missing; set YOLO_CHECKPOINT_PATH to a local .pt file")
+        self.settings = settings
+        self.model = YOLO(settings.checkpoint_path)
+        if getattr(self.model, "task", None) != "segment":
+            raise RuntimeError(
+                "YOLO_CHECKPOINT_PATH must point to a YOLO26 segmentation checkpoint "
+                "(for example yolo26n-seg.pt or its fine-tuned best.pt), not detection-only yolo26n.pt"
+            )
 
     def detect(self, image_bytes: bytes) -> List[Detection]:
-        import io
-
         from PIL import Image
 
-        image = Image.open(io.BytesIO(image_bytes))
-        results = self.model.predict(image, verbose=False)
+        try:
+            with Image.open(io.BytesIO(image_bytes)) as source:
+                image = source.convert("RGB")
+        except (OSError, ValueError) as error:
+            raise RuntimeError("Invalid image uploaded for food detection") from error
+
+        prediction_args = {"conf": self.settings.confidence, "imgsz": self.settings.image_size, "verbose": False}
+        if self.settings.device:
+            prediction_args["device"] = self.settings.device
+        results = self.model.predict(image, **prediction_args)
 
         detections: List[Detection] = []
         for result in results:
@@ -83,19 +128,23 @@ def _polygon_area(points) -> float:
     return abs(area) / 2.0
 
 
-def get_detector() -> Detector:
-    checkpoint_path = os.environ.get("YOLO_CHECKPOINT_PATH")
-    if checkpoint_path and os.path.isfile(checkpoint_path):
-        return YOLOSegDetector(checkpoint_path)
+@lru_cache(maxsize=4)
+def _get_detector(settings: VisionSettings) -> Detector:
+    if settings.checkpoint_path:
+        return YOLO26SegDetector(settings)
     if os.environ.get("USE_MOCK_DETECTOR", "false").lower() == "true":
         return MockYOLOSegDetector()
-    raise RuntimeError("Food detection model not installed. Add a trained checkpoint (see docs/TRAINING_HANDOFF.md) or enable demo mode.")
+    raise RuntimeError("Food detection model is not configured. Set YOLO_CHECKPOINT_PATH to a fine-tuned YOLO26 segmentation checkpoint or enable explicit demo mode with USE_MOCK_DETECTOR=true.")
+
+
+def get_detector() -> Detector:
+    return _get_detector(vision_settings())
 
 
 def vision_status() -> dict:
-    checkpoint_path = os.environ.get("YOLO_CHECKPOINT_PATH")
-    if checkpoint_path and os.path.isfile(checkpoint_path):
-        return {"mode": "yolo", "model_name": os.path.basename(checkpoint_path), "classes": []}
+    settings = vision_settings()
+    if settings.checkpoint_path and os.path.isfile(settings.checkpoint_path):
+        return {"mode": "yolo26-seg", "model_name": os.path.basename(settings.checkpoint_path), "classes": []}
     if os.environ.get("USE_MOCK_DETECTOR", "false").lower() == "true":
         return {"mode": "mock", "model_name": "fixture", "classes": [d["food_label"] for d in MockYOLOSegDetector.FIXTURE]}
     return {"mode": "unavailable", "model_name": None, "classes": []}

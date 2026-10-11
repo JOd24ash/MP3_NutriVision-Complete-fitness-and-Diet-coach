@@ -37,9 +37,9 @@ docker run -d --name nutrivision-chroma -p 8000:8000 chromadb/chroma
 
 ## Vision Model
 ```bash
-# YOLOv8-Seg — start from a pretrained checkpoint, fine-tune on custom data
+# YOLO26n-Seg — start from a pretrained checkpoint, fine-tune on custom data
 pip install ultralytics
-yolo segment train data=plate_dataset.yaml model=yolov8n-seg.pt epochs=100
+yolo segment train data=plate_dataset.yaml model=yolo26n-seg.pt epochs=100 imgsz=640
 ```
 
 ## Knowledge Base Ingestion (RAG)
@@ -53,6 +53,9 @@ python ingest.py --source ./knowledge_base/icmr_guidelines/
 DATABASE_URL=sqlite:///./nutrivision.db
 WHISPER_MODEL=base
 YOLO_CHECKPOINT_PATH=/checkpoints/best.pt
+YOLO_CONFIDENCE=0.25
+YOLO_IMAGE_SIZE=640
+# YOLO_DEVICE=cpu  # optional; omit to let Ultralytics select an available device
 ANTHROPIC_API_KEY=<optional chat-only key>
 ```
 

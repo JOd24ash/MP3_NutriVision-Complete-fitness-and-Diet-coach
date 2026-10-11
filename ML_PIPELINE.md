@@ -1,17 +1,17 @@
 # ML Pipeline Details
 
 ## 1. Multi-Item Plate Segmentation
-- **Model**: YOLOv8-Seg (instance segmentation)
+- **Model**: YOLO26n-Seg (instance segmentation)
 - **Input**: single plate photo (RGB)
 - **Output**: per-item mask + bounding box + class label + confidence score
 - **Dataset needs**:
   - Base: Food-101 / similar for pretraining single-item recognition
   - Custom: annotated multi-item thali/plate images (bounding polygons per item) — likely the biggest data-collection lift for this project
-- **Refinement pass**: ResNet/EfficientNet classifies each cropped mask independently to correct YOLO's coarse label when confidence is low (handles visually similar items like dal vs sambar)
+- **Refinement pass**: not implemented in this repository. A future ResNet/EfficientNet pass could classify each cropped mask independently to correct coarse labels such as dal vs sambar.
 
 ## 2. Portion / Volume Estimation
 - **Approach**: reference-object scaling (a plate of known diameter, or a coin placed in-frame) to convert pixel area → real-world area → estimated volume
-- **Optional upgrade**: depth-camera input (if device supports it) for direct volume estimation, skipping the reference-object step
+- **Optional upgrade**: depth-camera input is not implemented; it would allow direct volume estimation instead of the reference-object step.
 - **Volume → grams**: per-food-category density lookup table (e.g., g/cm³ for rice vs dal vs curry)
 - **Grams → macros**: join against a nutrition database (calories, protein, carbs, fat per 100g)
 - **Known limitation** (per literature survey): most portion-estimation research is lab-controlled — plan to validate accuracy against manually-weighed reference plates before trusting user-facing numbers
@@ -35,7 +35,7 @@
 
 ## Suggested Model Training Order
 1. Get single-item classification working well first (Food-101 baseline) — validates the ResNet/EfficientNet refinement step in isolation
-2. Fine-tune YOLOv8-Seg on custom multi-item plate data
+2. Fine-tune YOLO26n-Seg on custom multi-item plate data
 3. Build/validate portion estimation against manually-measured ground truth
 4. Stand up RAG chatbot against a small curated ICMR doc set before scaling the knowledge base
 5. Integrate Whisper + NLP parsing last — it's the most independent module and can be developed in parallel
