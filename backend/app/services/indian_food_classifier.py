@@ -1,4 +1,3 @@
-```python
 from functools import lru_cache
 
 import torch
@@ -40,5 +39,4 @@ def classify_food(image: Image.Image, top_k: int = 5) -> list[dict]:
             "score": float(item["score"]),
         }
         for item in results
-    ]
-```
+    ]
