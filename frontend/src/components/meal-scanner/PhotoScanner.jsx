@@ -12,9 +12,10 @@ import {
   RefreshCw,
   CheckCircle2,
   X,
-  Plus,
-  Flame,
-  Check
+  Check,
+  Edit2,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 
 export const PhotoScanner = () => {
@@ -29,17 +30,47 @@ export const PhotoScanner = () => {
   const [selectedItemIndex, setSelectedItemIndex] = useState(null);
 
   // Detected food items — populated from the real API response after upload.
-  // Starts empty so no placeholder data is shown before a scan.
   const [detectedItems, setDetectedItems] = useState([]);
   // Raw meal response from the backend (used for confirm/patch flows)
   const [activeMealLog, setActiveMealLog] = useState(null);
+
+  // Editing state for review flow
+  const [editingItemId, setEditingItemId] = useState(null);
+  const [editLabel, setEditLabel] = useState('');
+  const [editGrams, setEditGrams] = useState(100);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
+
+  // Helper to format meal items for the UI
+  const formatMealItems = (meal) => {
+    return meal.items.map(item => ({
+      id: item.id,
+      food_label: item.food_label,
+      name: item.food_label.replace(/_/g, ' '),
+      confidence: item.confidence,
+      category: item.guardrail_status === 'unknown'
+        ? '(review required)'
+        : `(${Math.round((item.confidence || 0) * 100)}% confidence)`,
+      portion: `${item.confirmed_grams ? `${item.confirmed_grams} g (Confirmed)` : `${item.est_grams ?? '?'} g (Estimated)`}`,
+      est_grams: item.est_grams,
+      confirmed_grams: item.confirmed_grams,
+      calories: item.calories ?? 0,
+      protein:  item.protein_g ?? 0,
+      carbs:    item.carbs_g   ?? 0,
+      fat:      item.fat_g     ?? 0,
+      guardrail_status: item.guardrail_status,
+      guardrail_reason: item.guardrail_reason,
+      image: '',
+      emoji: '🍽️',
+      _raw: item,
+    }));
+  };
 
   // Computed totals — always derived from real API values
   const totalCalories = detectedItems.reduce((acc, item) => acc + (item.calories || 0), 0);
   const totalProtein  = detectedItems.reduce((acc, item) => acc + (item.protein  || 0), 0);
   const totalCarbs    = detectedItems.reduce((acc, item) => acc + (item.carbs    || 0), 0);
   const totalFat      = detectedItems.reduce((acc, item) => acc + (item.fat      || 0), 0);
-
 
   // Recent scans dataset
   const recentScans = [
@@ -98,11 +129,16 @@ export const PhotoScanner = () => {
       return;
     }
 
-    const referencePixels = window.prompt('Reference object width in this image (pixels):');
-    const referenceCm = window.prompt('Actual width of that reference object (cm):');
-    if (!(Number(referencePixels) > 0 && Number(referenceCm) > 0)) {
-      showToast?.('A valid reference measurement is required for portion estimates.', 'danger');
-      return;
+    // Optional reference object measurement with safe fallback
+    const refPxInput = window.prompt('Optional: Reference object width in pixels (or leave blank to use standard portion sizes):');
+    let referencePixels = null;
+    let referenceCm = null;
+    if (refPxInput && Number(refPxInput) > 0) {
+      const refCmInput = window.prompt('Actual width of reference object in cm (e.g. 8.5 for card, 2.5 for coin):');
+      if (refCmInput && Number(refCmInput) > 0) {
+        referencePixels = Number(refPxInput);
+        referenceCm = Number(refCmInput);
+      }
     }
 
     const reader = new FileReader();
@@ -114,37 +150,23 @@ export const PhotoScanner = () => {
     // Clear previous results while the new image is being analysed.
     setDetectedItems([]);
     setActiveMealLog(null);
+    setEditingItemId(null);
     setIsAnalyzing(true);
     try {
       const form = new FormData();
       form.append('image', file);
       form.append('user_id', user.id);
-      form.append('reference_object_px', referencePixels);
-      form.append('reference_object_real_cm', referenceCm);
+      if (referencePixels && referenceCm) {
+        form.append('reference_object_px', referencePixels);
+        form.append('reference_object_real_cm', referenceCm);
+      }
       const meal = await api.meals.logPhoto(form);
-      const items = meal.items.map(item => ({
-        id: item.id,
-        name: item.food_label.replace(/_/g, ' '),
-        category: item.guardrail_status === 'unknown'
-          ? '(review required)'
-          : `(${Math.round((item.confidence || 0) * 100)}% confidence)`,
-        portion: `${item.est_grams ?? '?'} g`,
-        // Use real API values; fall back to 0 so totals never show NaN.
-        calories: item.calories ?? 0,
-        protein:  item.protein_g ?? 0,
-        carbs:    item.carbs_g   ?? 0,
-        fat:      item.fat_g     ?? 0,
-        image: '',
-        emoji: '🍽️',
-        // Keep raw API fields for patch/confirm calls
-        _raw: item,
-      }));
+      const items = formatMealItems(meal);
       setDetectedItems(items);
       setActiveMealLog(meal);
-      setActiveMeal?.(meal);
       showToast?.(
         meal.needs_manual_review
-          ? 'Some items need review — check labels marked "review required".'
+          ? 'Some items need review — please verify food labels before confirming.'
           : `Found ${items.length} item${items.length !== 1 ? 's' : ''}. Review and confirm to save.`,
         'success'
       );
@@ -155,6 +177,64 @@ export const PhotoScanner = () => {
     }
   };
 
+  const handleStartEdit = (item) => {
+    setEditingItemId(item.id);
+    setEditLabel(item.food_label);
+    setEditGrams(item.confirmed_grams || item.est_grams || 100);
+  };
+
+  const handleSaveEdit = async (itemId) => {
+    if (!activeMealLog?.meal_log_id) return;
+    setIsUpdating(true);
+    try {
+      await api.meals.patchItem(activeMealLog.meal_log_id, itemId, {
+        food_label: editLabel.trim(),
+        confirmed_grams: Number(editGrams),
+        est_grams: Number(editGrams),
+      });
+      const updated = await api.meals.get(activeMealLog.meal_log_id);
+      setActiveMealLog(updated);
+      setDetectedItems(formatMealItems(updated));
+      setEditingItemId(null);
+      showToast?.('Item updated and nutrition recalculated.', 'success');
+    } catch (err) {
+      showToast?.(err.message || 'Failed to update item', 'danger');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleDeleteItem = async (itemId) => {
+    if (!activeMealLog?.meal_log_id) return;
+    setIsUpdating(true);
+    try {
+      await api.meals.deleteItem(activeMealLog.meal_log_id, itemId);
+      const updated = await api.meals.get(activeMealLog.meal_log_id);
+      setActiveMealLog(updated);
+      setDetectedItems(formatMealItems(updated));
+      showToast?.('False detection removed from meal.', 'info');
+    } catch (err) {
+      showToast?.(err.message || 'Failed to remove item', 'danger');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleConfirmMeal = async () => {
+    if (!activeMealLog?.meal_log_id) return;
+    setIsConfirming(true);
+    try {
+      const confirmed = await api.meals.confirm(activeMealLog.meal_log_id);
+      setActiveMealLog(confirmed);
+      setDetectedItems(formatMealItems(confirmed));
+      setActiveMeal?.(confirmed);
+      showToast?.('Meal confirmed and saved to your nutrition log!', 'success');
+    } catch (err) {
+      showToast?.(err.message || 'Failed to confirm meal', 'danger');
+    } finally {
+      setIsConfirming(false);
+    }
+  };
 
   // Simulated scan trigger
   const runSimulatedScan = () => {
@@ -164,6 +244,7 @@ export const PhotoScanner = () => {
       if (showToast) showToast('AI detected 4 food items with portion estimates!', 'success');
     }, 1200);
   };
+
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
@@ -348,32 +429,164 @@ export const PhotoScanner = () => {
                   key={item.id}
                   className={`scanner-item-card${selectedItemIndex === idx ? ' selected' : ''}`}
                   onClick={() => setSelectedItemIndex(selectedItemIndex === idx ? null : idx)}
+                  style={{ position: 'relative' }}
                 >
-                  {/* Image banner */}
-                  <img
-                    src={item.image}
-                    alt={item.name}
-                    className="scanner-item-card__img"
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                      const ph = document.createElement('div');
-                      ph.className = 'scanner-item-card__img-placeholder';
-                      ph.textContent = item.emoji;
-                      e.target.parentElement.insertBefore(ph, e.target.nextSibling);
-                    }}
-                  />
-
-                  {/* Card body */}
-                  <div className="scanner-item-card__body">
-                    <div className="scanner-item-card__name">{item.name}</div>
-                    <div className="scanner-item-card__category">{item.category}</div>
-                    <div className="scanner-item-card__portion">{item.portion}</div>
-                    <div className="scanner-item-card__footer">
-                      <div className="scanner-item-card__calories">{item.calories} kcal</div>
-                      <div className="scanner-item-card__macros">
-                        {item.protein}g P · {item.carbs}g C · {item.fat}g F
+                  {/* Item Content */}
+                  <div className="scanner-item-card__body" style={{ width: '100%' }}>
+                    {editingItemId === item.id ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 4 }} onClick={(e) => e.stopPropagation()}>
+                        <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#374151' }}>
+                          Food Label:
+                        </label>
+                        <input
+                          type="text"
+                          value={editLabel}
+                          onChange={(e) => setEditLabel(e.target.value)}
+                          placeholder="e.g. chapati, dal, rice"
+                          style={{
+                            padding: '6px 8px',
+                            borderRadius: 6,
+                            border: '1.5px solid #10b981',
+                            fontSize: '0.85rem',
+                            outline: 'none',
+                          }}
+                        />
+                        <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#374151' }}>
+                          Portion Grams:
+                        </label>
+                        <input
+                          type="number"
+                          min="5"
+                          max="1000"
+                          value={editGrams}
+                          onChange={(e) => setEditGrams(e.target.value)}
+                          style={{
+                            padding: '6px 8px',
+                            borderRadius: 6,
+                            border: '1.5px solid #10b981',
+                            fontSize: '0.85rem',
+                            outline: 'none',
+                          }}
+                        />
+                        <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                          <button
+                            onClick={() => handleSaveEdit(item.id)}
+                            disabled={isUpdating}
+                            style={{
+                              flex: 1,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: 4,
+                              background: '#16a34a',
+                              color: '#fff',
+                              border: 'none',
+                              borderRadius: 6,
+                              padding: '6px 8px',
+                              fontSize: '0.78rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <Check size={14} />
+                            <span>Save</span>
+                          </button>
+                          <button
+                            onClick={() => setEditingItemId(null)}
+                            style={{
+                              flex: 1,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: 4,
+                              background: '#f3f4f6',
+                              color: '#374151',
+                              border: '1px solid #d1d5db',
+                              borderRadius: 6,
+                              padding: '6px 8px',
+                              fontSize: '0.78rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <X size={14} />
+                            <span>Cancel</span>
+                          </button>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div className="scanner-item-card__name" style={{ textTransform: 'capitalize' }}>
+                            {item.name}
+                          </div>
+                          {activeMealLog && !activeMealLog.confirmed && (
+                            <div style={{ display: 'flex', gap: 4 }} onClick={(e) => e.stopPropagation()}>
+                              <button
+                                onClick={() => handleStartEdit(item)}
+                                title="Edit label or portion"
+                                style={{
+                                  background: '#f3f4f6',
+                                  border: 'none',
+                                  borderRadius: 4,
+                                  padding: 4,
+                                  cursor: 'pointer',
+                                  color: '#4b5563',
+                                }}
+                              >
+                                <Edit2 size={13} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteItem(item.id)}
+                                title="Reject false detection"
+                                style={{
+                                  background: '#fee2e2',
+                                  border: 'none',
+                                  borderRadius: 4,
+                                  padding: 4,
+                                  cursor: 'pointer',
+                                  color: '#dc2626',
+                                }}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {item.guardrail_status === 'unknown' ? (
+                          <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            marginTop: 3,
+                            padding: '2px 8px',
+                            background: '#fef3c7',
+                            border: '1px solid #fde68a',
+                            borderRadius: 6,
+                            color: '#b45309',
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                          }}>
+                            <AlertTriangle size={12} />
+                            <span>Unknown food — click edit to correct label</span>
+                          </div>
+                        ) : (
+                          <div className="scanner-item-card__category">{item.category}</div>
+                        )}
+
+                        <div className="scanner-item-card__portion">
+                          {item.confirmed_grams ? `${item.confirmed_grams}g (Confirmed)` : `${item.est_grams ?? '?'}g (Estimated)`}
+                        </div>
+
+                        <div className="scanner-item-card__footer">
+                          <div className="scanner-item-card__calories">{item.calories} kcal</div>
+                          <div className="scanner-item-card__macros">
+                            {item.protein}g P · {item.carbs}g C · {item.fat}g F
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}
@@ -394,7 +607,7 @@ export const PhotoScanner = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#15803d', fontWeight: 700, fontSize: '0.92rem' }}>
                 <CheckCircle2 size={18} />
-                <span>Total Nutrition (Estimated)</span>
+                <span>Total Nutrition {activeMealLog?.confirmed ? '(Confirmed)' : '(Estimated Draft)'}</span>
               </div>
               <div style={{ fontSize: '1.55rem', fontWeight: 800, color: '#16a34a' }}>
                 {totalCalories} kcal
@@ -439,7 +652,6 @@ export const PhotoScanner = () => {
                 <span>{Math.round(totalCarbs)}g Carbs</span>
               </div>
 
-
               {/* Fat */}
               <div style={{
                 display: 'flex',
@@ -456,12 +668,52 @@ export const PhotoScanner = () => {
               }}>
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#7c3aed' }} />
                 <span>{Math.round(totalFat)}g Fat</span>
-
               </div>
             </div>
+
+            {/* Review & Confirm Action */}
+            {activeMealLog && (
+              <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #bbf7d0', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <button
+                  onClick={handleConfirmMeal}
+                  disabled={isConfirming || activeMealLog.confirmed}
+                  style={{
+                    width: '100%',
+                    padding: '12px 18px',
+                    borderRadius: 12,
+                    border: 'none',
+                    background: activeMealLog.confirmed ? '#059669' : '#16a34a',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    fontSize: '0.92rem',
+                    cursor: activeMealLog.confirmed ? 'default' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    boxShadow: '0 4px 12px rgba(22, 163, 74, 0.25)',
+                    transition: 'all 0.15s ease',
+                    opacity: isConfirming ? 0.7 : 1,
+                  }}
+                >
+                  <CheckCircle2 size={18} />
+                  <span>
+                    {activeMealLog.confirmed
+                      ? '✓ Meal Confirmed & Saved to Log'
+                      : (isConfirming ? 'Saving Meal...' : 'Confirm & Save Meal')}
+                  </span>
+                </button>
+                {!activeMealLog.confirmed && (
+                  <span style={{ fontSize: '0.74rem', color: '#4b5563', textAlign: 'center' }}>
+                    Verify labels & portions above. Meal will only be saved to your history after confirmation.
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
+
 
       {/* ── BOTTOM SECTION: Recent Scans ── */}
       <div className="dash-panel" style={{ padding: '20px 24px' }}>

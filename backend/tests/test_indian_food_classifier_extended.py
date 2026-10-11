@@ -44,14 +44,6 @@ class TestNormalizeFoodLabel:
         from app.nutrition.labels import normalize_food_label
         assert normalize_food_label("dal_tadka") == "dal"
 
-    def test_hf_kadai_paneer_maps_to_paneer(self):
-        from app.nutrition.labels import normalize_food_label
-        assert normalize_food_label("kadai_paneer") == "paneer"
-
-    def test_hf_paneer_butter_masala_maps_to_palak_paneer(self):
-        from app.nutrition.labels import normalize_food_label
-        assert normalize_food_label("paneer_butter_masala") == "palak_paneer"
-
     def test_hf_gajar_ka_halwa_maps_to_halwa(self):
         from app.nutrition.labels import normalize_food_label
         assert normalize_food_label("gajar_ka_halwa") == "halwa"
@@ -60,17 +52,44 @@ class TestNormalizeFoodLabel:
         from app.nutrition.labels import normalize_food_label
         assert normalize_food_label("bandar_laddu") == "ladoo"
 
-    def test_hf_naan_maps_to_chapati(self):
-        from app.nutrition.labels import normalize_food_label
-        assert normalize_food_label("naan") == "chapati"
-
-    def test_hf_butter_chicken_maps_to_chicken_curry(self):
-        from app.nutrition.labels import normalize_food_label
-        assert normalize_food_label("butter_chicken") == "chicken_curry"
-
     def test_hf_maach_jhol_maps_to_fish_curry(self):
         from app.nutrition.labels import normalize_food_label
         assert normalize_food_label("maach_jhol") == "fish_curry"
+
+    def test_hf_bhindi_masala_maps_to_bhindi_sabzi(self):
+        from app.nutrition.labels import normalize_food_label
+        assert normalize_food_label("bhindi_masala") == "bhindi_sabzi"
+
+    def test_hf_sheera_maps_to_halwa(self):
+        from app.nutrition.labels import normalize_food_label
+        assert normalize_food_label("sheera") == "halwa"
+
+    def test_hf_phirni_maps_to_kheer(self):
+        from app.nutrition.labels import normalize_food_label
+        assert normalize_food_label("phirni") == "kheer"
+
+    def test_misleading_substitutions_removed(self):
+        """Misleading substitutions must NOT be aliased to unrelated foods."""
+        from app.nutrition.labels import normalize_food_label
+        misleading = [
+            ("paneer_butter_masala", "palak_paneer"),
+            ("kadai_paneer", "paneer"),
+            ("naan", "chapati"),
+            ("boondi", "roasted_peanuts"),
+            ("unni_appam", "idli"),
+            ("rasgulla", "gulab_jamun"),
+            ("sandesh", "gulab_jamun"),
+            ("karela_bharta", "baingan_bharta"),
+            ("bhatura", "paratha"),
+            ("kachori", "samosa"),
+            ("aloo_tikki", "samosa"),
+            ("misti_doi", "dahi"),
+            ("shrikhand", "dahi"),
+        ]
+        for raw, prohibited_target in misleading:
+            result = normalize_food_label(raw)
+            assert result != prohibited_target, f"{raw} should not map to {prohibited_target}"
+            assert result == raw, f"{raw} should remain unmapped"
 
     def test_spaces_and_mixed_case_normalised(self):
         from app.nutrition.labels import normalize_food_label
@@ -140,14 +159,15 @@ class TestNutritionLookupForHFLabels:
         assert result.nutrition_status == "unknown"
         assert result.nutrition is None
 
-    def test_compute_item_nutrition_palak_paneer_hf_label(self):
-        """paneer_butter_masala (HF) → palak_paneer (DB) must yield real macros."""
+    def test_unsupported_food_returns_unknown_status_and_never_invents_nutrition(self):
+        """Unmapped items like paneer_butter_masala or naan must return unknown status without invented macros."""
         from app.nutrition.calculator import compute_item_nutrition
         from app.nutrition.models import FoodItemInput
-        result = compute_item_nutrition(FoodItemInput(food_label="paneer_butter_masala", estimated_grams=150))
-        assert result.nutrition_status == "ok"
-        assert result.nutrition is not None
-        assert result.nutrition.calories > 0
+        unsupported = ["paneer_butter_masala", "naan", "boondi", "rasgulla", "unni_appam"]
+        for food in unsupported:
+            result = compute_item_nutrition(FoodItemInput(food_label=food, estimated_grams=150))
+            assert result.nutrition_status == "unknown", f"{food} should have unknown nutrition status"
+            assert result.nutrition is None, f"{food} should not have invented nutrition values"
 
     def test_portion_recalculation_scales_linearly(self):
         from app.nutrition.calculator import compute_item_nutrition
@@ -168,6 +188,7 @@ class TestNutritionLookupForHFLabels:
         from app.nutrition.models import FoodItemInput
         result = compute_item_nutrition(FoodItemInput(food_label="rice", estimated_grams=None))
         assert result.nutrition_status == "missing_grams"
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -240,6 +261,60 @@ class TestYOLO26SegDetectorCOCOGuard:
             mod.get_detector()
         mod._get_detector.cache_clear()
 
+    def test_vision_status_coco_is_marked_unavailable(self, monkeypatch):
+        import app.vision.detector as mod
+        monkeypatch.setattr("app.vision.detector.os.path.isfile", lambda p: True)
+        monkeypatch.setenv("YOLO_CHECKPOINT_PATH", "fake_coco.pt")
+
+        class COCOSegYOLO:
+            task = "segment"
+            names = {0: "person", 1: "bicycle", 2: "car"}
+
+            def __init__(self, path):
+                pass
+
+        monkeypatch.setitem(sys.modules, "ultralytics", types.SimpleNamespace(YOLO=COCOSegYOLO))
+        status = mod.vision_status()
+        assert status["mode"] == "unavailable"
+        assert status["is_food_trained"] is False
+        assert "COCO-80" in status["error"]
+
+    def test_vision_status_food_checkpoint_is_marked_real(self, monkeypatch):
+        import app.vision.detector as mod
+        monkeypatch.setattr("app.vision.detector.os.path.isfile", lambda p: True)
+        monkeypatch.setenv("YOLO_CHECKPOINT_PATH", "food.pt")
+
+        class FoodSegYOLO:
+            task = "segment"
+            names = {0: "chapati", 1: "rice", 2: "dal"}
+
+            def __init__(self, path):
+                pass
+
+        monkeypatch.setitem(sys.modules, "ultralytics", types.SimpleNamespace(YOLO=FoodSegYOLO))
+        status = mod.vision_status()
+        assert status["mode"] == "real"
+        assert status["is_food_trained"] is True
+        assert status["classes"] == ["chapati", "rice", "dal"]
+
+    def test_vision_status_mock_when_explicitly_configured(self, monkeypatch):
+        import app.vision.detector as mod
+        monkeypatch.delenv("YOLO_CHECKPOINT_PATH", raising=False)
+        monkeypatch.setenv("USE_MOCK_DETECTOR", "true")
+        status = mod.vision_status()
+        assert status["mode"] == "mock"
+        assert status["model_name"] == "fixture"
+        assert status["is_food_trained"] is False
+
+    def test_vision_status_unavailable_by_default(self, monkeypatch):
+        import app.vision.detector as mod
+        monkeypatch.delenv("YOLO_CHECKPOINT_PATH", raising=False)
+        monkeypatch.delenv("USE_MOCK_DETECTOR", raising=False)
+        status = mod.vision_status()
+        assert status["mode"] == "unavailable"
+        assert status["model_name"] is None
+        assert status["is_food_trained"] is False
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 4. Indian food classifier — mocked inference
@@ -298,17 +373,12 @@ class TestPortionEstimator:
     def test_estimate_grams_from_area_known_food(self):
         from app.portion.estimator import estimate_grams_from_area
         from app.portion.database import DEFAULT_HEIGHT_CM, DEFAULT_DENSITY_G_PER_CM3
-        # foods.json chapati record has no height_cm / density_g_per_cm3 columns,
-        # so get_portion_defaults falls back to the module-level defaults.
-        # pixel_area=100, px_per_cm=10 → area_cm2=1.0
-        # grams = area_cm2 * DEFAULT_HEIGHT_CM * DEFAULT_DENSITY_G_PER_CM3
         expected = 1.0 * DEFAULT_HEIGHT_CM * DEFAULT_DENSITY_G_PER_CM3
         grams = estimate_grams_from_area(100.0, "chapati", 10.0)
         assert grams == pytest.approx(expected, abs=0.05)
 
     def test_estimate_grams_unknown_food_uses_defaults(self):
         from app.portion.estimator import estimate_grams_from_area
-        # Falls back to DEFAULT_HEIGHT_CM=2.0, DEFAULT_DENSITY=0.85
         grams = estimate_grams_from_area(100.0, "totally_unknown_food", 10.0)
         assert grams == pytest.approx(2.0 * 0.85, abs=0.1)
 
@@ -324,55 +394,116 @@ class TestPortionEstimator:
         assert items[0].estimated_grams > 0
         assert items[1].food_label == "dal"
 
+    def test_estimate_meal_from_detections_missing_calibration_uses_defaults_safely(self):
+        """When reference scaling inputs are None, defaults from foods.json must be safely used."""
+        from app.portion.estimator import estimate_meal_from_detections
+        detections = [
+            {"food_label": "chapati", "pixel_area": 5000.0, "confidence": 0.95},
+            {"food_label": "rice", "pixel_area": 12000.0, "confidence": 0.9},
+        ]
+        items = estimate_meal_from_detections(detections, None, None)
+        assert len(items) == 2
+        assert items[0].estimated_grams == 40.0  # standard chapati serving
+        assert items[1].estimated_grams == 150.0  # standard cooked rice serving
+
+    def test_estimate_meal_from_detections_invalid_calibration_uses_defaults_safely(self):
+        from app.portion.estimator import estimate_meal_from_detections
+        detections = [{"food_label": "dal", "pixel_area": 8000.0, "confidence": 0.88}]
+        items = estimate_meal_from_detections(detections, -50.0, 0.0)
+        assert len(items) == 1
+        assert items[0].estimated_grams == 150.0  # standard dal serving
+
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 6. Real-image integration test (optional — skipped in CI unless env var set)
+# 6. Meal persistence, review before saving, and confirmation
 # ─────────────────────────────────────────────────────────────────────────────
 
-@pytest.mark.skipif(
-    not os.environ.get("NUTRIVISION_TEST_IMAGE"),
-    reason="Set NUTRIVISION_TEST_IMAGE=/path/to/image.jpg to run real HF inference",
-)
-def test_real_hf_inference_on_developer_image():
-    """
-    Runs dima806/indian_food_image_detection on a real image supplied by the
-    developer.  Reports the predicted label and confidence score.
+class TestMealPersistenceAndReview:
+    def test_meal_review_recalculation_and_confirmation(self):
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from app.db.models import Base, User, MedicalProfile, MealSource
+        from app.main import persist_meal, meal_log_to_response, list_meals
+        from app.nutrition.calculator import compute_item_nutrition
+        from app.guardrails.engine import evaluate_meal
+        from app.guardrails.models import MedicalProfile as MedicalProfileSchema
+        from app.nutrition.models import FoodItemInput
+        from app.schemas import MealItemPatchRequest
+        from app.main import patch_meal_item, confirm_meal
 
-    Usage:
-        NUTRIVISION_TEST_IMAGE=/path/to/thali.jpg \\
-        INDIAN_FOOD_CLASSIFIER_ENABLED=true \\
-        python -m pytest backend/tests/test_indian_food_classifier_extended.py \\
-            -k test_real_hf_inference -s -v
+        engine = create_engine("sqlite:///:memory:")
+        Base.metadata.create_all(engine)
+        Session = sessionmaker(bind=engine)
+        db = Session()
 
-    NOTE: This test makes no accuracy claims from a single image.  Its purpose
-    is to confirm that the model loads, processes the image, and returns a
-    genuine label — not a hardcoded or fabricated prediction.
-    """
-    image_path = os.environ["NUTRIVISION_TEST_IMAGE"]
-    assert os.path.isfile(image_path), f"Image not found: {image_path}"
+        user = User(name="Test User", email="test@example.com", hashed_password="pw")
+        db.add(user)
+        db.flush()
+        profile = MedicalProfile(user_id=user.id, allergies=[], conditions=[])
+        db.add(profile)
+        db.commit()
 
+        # 1. Photo scan creates an unconfirmed draft
+        items = [FoodItemInput(food_label="rice", estimated_grams=100)]
+        rows = evaluate_meal([compute_item_nutrition(i) for i in items], MedicalProfileSchema(allergies=[], conditions=[]))
+        meal_log = persist_meal(db, user.id, MealSource.photo, rows)
+        assert meal_log.confirmed == "false"
+        resp = meal_log_to_response(meal_log)
+        assert resp.confirmed is False
+
+        # 2. History with confirmed_only=True does not list unconfirmed drafts
+        history = list_meals(user.id, confirmed_only=True, db=db, current_user=user)
+        assert len(history) == 0
+
+        # 3. Patching item recalculates nutrition server-side
+        item_id = meal_log.items[0].id
+        patched = patch_meal_item(
+            meal_log.id,
+            item_id,
+            MealItemPatchRequest(est_grams=200),
+            db=db,
+            current_user=user,
+        )
+        assert patched.est_grams == 200.0
+        # Rice 100g = 130 kcal, so 200g should be 260 kcal
+        assert patched.calories == 260.0
+
+        # 4. Explicit confirmation marks meal confirmed
+        confirmed_resp = confirm_meal(meal_log.id, db=db, current_user=user)
+        assert confirmed_resp.confirmed is True
+
+        # 5. History now contains the confirmed meal
+        history_after = list_meals(user.id, confirmed_only=True, db=db, current_user=user)
+        assert len(history_after) == 1
+        assert history_after[0].total.calories == 260.0
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 7. Real inference tests (HF model)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_real_hf_inference_reproducible():
+    """Confirms that the requested Hugging Face model loads and performs real inference
+    without fabricating results."""
     from PIL import Image
     from app.vision.indian_food_classifier import ClassifierSettings, IndianFoodClassifier
     from app.nutrition.labels import normalize_food_label
-    from app.nutrition.database import get_nutrition_per_100g
 
-    settings = ClassifierSettings(enabled=True, confidence=0.0, device=None)
+    settings = ClassifierSettings(enabled=True, confidence=0.0, device="cpu")
     clf = IndianFoodClassifier(settings)
 
-    image = Image.open(image_path)
+    # Use a real image if provided via env var, or a real generated image
+    image_path = os.environ.get("NUTRIVISION_TEST_IMAGE")
+    if image_path and os.path.isfile(image_path):
+        image = Image.open(image_path)
+    else:
+        # Standard RGB test image
+        image = Image.new("RGB", (224, 224), color=(200, 150, 80))
+
     label, score = clf.classify(image)
-
+    print(f"\n[REAL INFERENCE RESULT] Label: {label}, Score: {score:.4f}")
+    assert isinstance(label, str) and len(label) > 0, "Model must return non-empty label"
+    assert 0.0 <= score <= 1.0, f"Confidence score out of range: {score}"
     canonical = normalize_food_label(label)
-    nutrition = get_nutrition_per_100g(canonical)
+    assert isinstance(canonical, str) and len(canonical) > 0
 
-    print(f"\n[REAL INFERENCE RESULT]")
-    print(f"  Image       : {image_path}")
-    print(f"  Raw label   : {label}")
-    print(f"  Confidence  : {score:.4f}")
-    print(f"  Canonical   : {canonical}")
-    print(f"  Nutrition DB: {'FOUND — ' + str(nutrition) if nutrition else 'NOT FOUND (nutrition_status=unknown)'}")
-
-    # Structural assertions — not accuracy assertions:
-    assert isinstance(label, str) and label, "Model returned empty label"
-    assert 0.0 <= score <= 1.0, f"Score out of range: {score}"
-    assert isinstance(canonical, str) and canonical, "normalize_food_label returned empty"

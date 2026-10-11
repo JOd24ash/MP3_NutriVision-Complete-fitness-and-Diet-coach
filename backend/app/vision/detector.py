@@ -216,19 +216,70 @@ def get_detector() -> Detector:
     return _get_detector(vision_settings())
 
 
+def check_checkpoint(checkpoint_path: str) -> tuple[bool, str, list[str]]:
+    """Checks if a checkpoint file exists, is a segmentation model, and is trained on food classes."""
+    if not checkpoint_path or not os.path.isfile(checkpoint_path):
+        return False, "Checkpoint file does not exist", []
+    try:
+        from ultralytics import YOLO
+        model = YOLO(checkpoint_path)
+        classes = list(getattr(model, "names", {}).values())
+        if getattr(model, "task", None) != "segment":
+            return False, "Checkpoint is not a YOLO segmentation model (task != 'segment')", classes
+        checkpoint_classes = set(classes)
+        if checkpoint_classes and checkpoint_classes.issubset(_COCO_GENERIC_CLASSES):
+            return False, "Checkpoint is a generic COCO-80 model, not trained on Indian food", classes
+        return True, "ok", classes
+    except Exception as e:
+        return False, f"Failed to load checkpoint: {e}", []
+
+
 def vision_status() -> dict:
     settings = vision_settings()
+    classifier_info = {"enabled": False, "model_id": None, "confidence": 0.0}
+    try:
+        from .indian_food_classifier import classifier_settings, MODEL_ID
+        clf_settings = classifier_settings()
+        classifier_info = {
+            "enabled": clf_settings.enabled,
+            "model_id": MODEL_ID,
+            "confidence": clf_settings.confidence,
+        }
+    except Exception:
+        pass
+
     if settings.checkpoint_path and os.path.isfile(settings.checkpoint_path):
-        # Report actual class names from the checkpoint when ultralytics is
-        # available, so operators can verify the model is food-trained.
-        classes: list[str] = []
-        try:
-            from ultralytics import YOLO
-            model = YOLO(settings.checkpoint_path)
-            classes = list(getattr(model, "names", {}).values())
-        except Exception:  # ultralytics not installed, or file unreadable
-            pass
-        return {"mode": "yolo26-seg", "model_name": os.path.basename(settings.checkpoint_path), "classes": classes}
+        is_food, msg, classes = check_checkpoint(settings.checkpoint_path)
+        if is_food:
+            return {
+                "mode": "real",
+                "model_name": os.path.basename(settings.checkpoint_path),
+                "classes": classes,
+                "is_food_trained": True,
+                "classifier": classifier_info,
+            }
+        return {
+            "mode": "unavailable",
+            "model_name": os.path.basename(settings.checkpoint_path),
+            "classes": classes,
+            "error": msg,
+            "is_food_trained": False,
+            "classifier": classifier_info,
+        }
+
     if os.environ.get("USE_MOCK_DETECTOR", "false").lower() == "true":
-        return {"mode": "mock", "model_name": "fixture", "classes": [d["food_label"] for d in MockYOLOSegDetector.FIXTURE]}
-    return {"mode": "unavailable", "model_name": None, "classes": []}
+        return {
+            "mode": "mock",
+            "model_name": "fixture",
+            "classes": [d["food_label"] for d in MockYOLOSegDetector.FIXTURE],
+            "is_food_trained": False,
+            "classifier": classifier_info,
+        }
+
+    return {
+        "mode": "unavailable",
+        "model_name": None,
+        "classes": [],
+        "is_food_trained": False,
+        "classifier": classifier_info,
+    }
