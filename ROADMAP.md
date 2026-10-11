@@ -1,56 +1,49 @@
 # Build Roadmap
 
-## Phase 0 — Setup (Week 1)
-- Repo scaffolding, tech stack finalized
-- PostgreSQL + TimescaleDB instance up
-- ChromaDB instance up
-- Collect/curate initial ICMR guideline docs for RAG
+## Current baseline
+- FastAPI backend, React + Vite frontend, SQLite local persistence, guardrails, RAG retrieval, voice parsing, and the photo-meal API are implemented.
+- The photo API supports a local, mask-capable YOLO26 segmentation checkpoint or an explicit deterministic mock detector.
+- PostgreSQL, TimescaleDB, ChromaDB service deployment, and model artifacts remain deployment choices; they are not bundled or started by default.
 
-## Phase 1 — Core Data & Single-Item Baseline (Weeks 2–3)
-- `users`, `medical_profiles`, `meal_logs`, `meal_items`, `nutrition_reference` tables live
-- Baseline food classifier working on Food-101 (validates the classification-refinement step before tackling segmentation)
-- Basic FastAPI skeleton with `/auth`, `/users/{id}/profile`
+## Phase 1 — Custom food dataset
+- Collect and polygon-annotate mixed Indian-meal images.
+- Keep labels aligned with `backend/data/foods.json`.
+- Create held-out validation images and manually weighed portion ground truth.
 
-## Phase 2 — Multi-Item Vision Pipeline (Weeks 4–6)
-- Collect/annotate custom multi-item plate dataset (biggest data lift — start early)
-- Fine-tune YOLO26n-Seg for plate segmentation
-- Integrate ResNet/EfficientNet refinement pass
-- `/meals/photo` endpoint returns raw detections (portion estimation not yet wired in)
+## Phase 2 — YOLO26 food segmentation
+- Fine-tune `yolo26n-seg.pt` on the custom dataset and set `YOLO_CHECKPOINT_PATH` to the resulting local `best.pt`.
+- Measure detection/segmentation precision, recall, and mAP on the held-out split.
+- Do not use a COCO-only checkpoint to label Indian dishes for nutrition.
 
-## Phase 3 — Portion Estimation (Weeks 6–7, overlaps Phase 2)
-- Reference-object scaling implementation
-- Density lookup table for common thali items
-- Validate against manually-weighed test plates
-- Wire into `/meals/photo` for full macro output
+## Phase 3 — Portion-estimation validation
+- The reference-object area-to-grams calculation is wired into `/meals/photo`.
+- Validate density/height defaults against manually weighed test plates.
+- Add depth input only after its capture and calibration workflow is defined.
 
-## Phase 4 — Guardrail Layer (Week 8)
-- Allergen/condition cross-check logic
-- `/guardrails/check` endpoint
-- Wire into `/meals/photo` and `/meals/voice` inline
+## Phase 4 — Guardrail validation
+- Exercise food/allergen and condition cases against dietitian-reviewed data.
+- Keep unrecognized labels in manual-review flow rather than assigning nutrition.
 
-## Phase 5 — RAG Chatbot (Weeks 8–9, overlaps Phase 4)
-- Ingest curated ICMR docs into ChromaDB
-- LangChain/LlamaIndex retrieval + prompt pipeline
-- `/chat` endpoint with source citations
-- Connect guardrail flags into chatbot context
+## Phase 5 — RAG validation
+- Add and vet ICMR source documents, then evaluate retrieval grounding and citations.
+- Maintain the current direct prompt/Anthropic integration unless a framework solves a demonstrated need.
 
-## Phase 6 — Voice / Code-Mixed Logging (Weeks 9–10)
-- Whisper ASR integration
-- NLP parser for `(item, quantity, unit)` extraction
-- `/meals/voice` endpoint, reuse existing macro/guardrail pipeline
+## Phase 6 — Voice validation
+- Test Whisper transcription and the Hinglish parser against representative recordings.
+- Confirm parsed quantities before using resulting nutrition estimates.
 
-## Phase 7 — Mobile App Integration (Weeks 10–12)
-- Camera capture + voice recording UI
+## Phase 7 — Frontend photo integration
+- Wire the React scanner upload flow to `/api/v1/meals/photo`.
 - Detected-items review/edit screen
 - Macro summary, guardrail warnings, chatbot UI
 - Meal history + health metrics views
 
-## Phase 8 — Testing & Polish (Weeks 12–13)
+## Phase 8 — Testing & deployment
 - End-to-end accuracy validation (vision, portion, guardrail, RAG)
 - Edge cases: low-confidence detections, unsupported languages, ambiguous items
 - Performance/latency pass on inference endpoints
 
 ## Suggested Parallelization (3-person team)
-- **Person A**: Vision pipeline (YOLO26n-Seg, refinement, portion estimation)
+- **Person A**: Dataset, YOLO26n-Seg training/evaluation, and portion validation
 - **Person B**: RAG chatbot + guardrail layer + data model/backend
-- **Person C**: Mobile app + speech/voice pipeline integration
+- **Person C**: React scanner integration and speech/voice pipeline validation

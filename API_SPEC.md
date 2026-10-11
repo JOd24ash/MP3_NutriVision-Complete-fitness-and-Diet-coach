@@ -17,9 +17,11 @@ Base URL: `/api/v1`
 ## Meal Logging — Photo
 | Method | Path | Description |
 |---|---|---|
-| POST | `/meals/photo` | Upload plate photo → runs vision + portion + guardrail pipeline → returns detected items with macros & warnings |
+| POST | `/meals/photo` | Upload a plate photo → runs segmentation, reference-scale portion estimation, nutrition, and guardrails |
 
-**Request**: `multipart/form-data` — `image`, `user_id`
+**Request**: authenticated `multipart/form-data` — `image`, `user_id`, `reference_object_px`, `reference_object_real_cm`.
+
+The configured model must be a local YOLO26 segmentation checkpoint. Detection-only checkpoints and unknown food labels do not produce invented nutrition values.
 **Response**:
 ```json
 {
@@ -39,6 +41,11 @@ Base URL: `/api/v1`
   "total": { "calories": 640, "protein_g": 21, "carbs_g": 88, "fat_g": 14 }
 }
 ```
+
+## Vision Status
+| Method | Path | Description |
+|---|---|---|
+| GET | `/vision/status` | Report whether a local YOLO26 segmentation checkpoint or explicit mock detector is configured |
 
 ## Meal Logging — Voice
 | Method | Path | Description |
@@ -84,7 +91,12 @@ Base URL: `/api/v1`
 | POST | `/guardrails/check` | Given a list of food items + user_id, return pass/warn/block per item (used internally, exposed for testing) |
 
 ## Error Conventions
-- `400` — malformed request (bad image, unsupported audio format)
+- `400` — malformed request
 - `404` — user/meal not found
-- `422` — vision/speech pipeline couldn't confidently parse input (returns partial results + `needs_manual_review: true`)
-- `500` — inference failure
+- `422` — no food item was detected
+- `503` — vision/speech model is unavailable or the uploaded image cannot be decoded
+
+## Vision limits
+- `/meals/photo` stores a meal immediately; it does not return masks, bounding boxes, or an annotated image.
+- The current frontend scanner does not call this endpoint.
+- Portion and macro values are estimates. The caller must supply a valid in-frame reference measurement.

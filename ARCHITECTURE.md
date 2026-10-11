@@ -2,52 +2,53 @@
 
 ## High-Level Flow
 ```
-[Mobile App]
+[React + Vite Frontend]
    │  photo / voice
    ▼
 [FastAPI Gateway]
    │
-   ├─► Vision Service ──► YOLO26n-Seg (item detection + masks)
-   │                     └─► ResNet/EfficientNet (classification refinement)
+   ├─► Vision Service ──► local YOLO26n-Seg food checkpoint
+   │                     └─► mask polygon area + class label + confidence
    │
-   ├─► Portion Service ──► reference-object / depth scaling ──► area → grams
+   ├─► Portion Service ──► caller-supplied reference scale ──► area → grams
    │
    ├─► Speech Service ──► Whisper ASR ──► NLP parser ──► structured meal entry
    │
    ├─► Guardrail Layer ──► cross-check detected items vs user medical profile
    │                        (allergies, diabetes, renal conditions)
    │
-   └─► RAG Chatbot ──► LangChain/LlamaIndex ──► ChromaDB (ICMR guidelines)
+   └─► RAG Chatbot ──► built-in retrieval/prompt flow ──► ChromaDB (ICMR guidelines)
                          └─► grounded response, no hallucinated claims
    │
    ▼
-[PostgreSQL / TimescaleDB]  ← meal logs, macros, user profile, time-series health metrics
+[SQLite by default / PostgreSQL optional]  ← meal logs, macros, user profile, health metrics
    │
    ▼
-[Mobile App] ← macros, warnings, chatbot advice
+[Frontend] ← macros, warnings, chatbot advice
 ```
 
 ## Components
 
-### 1. Mobile App (React Native / Flutter)
-- Camera capture for plate photos
-- Voice recording for code-mixed meal logging
-- Displays segmented plate, macro breakdown, guardrail warnings, chatbot advice
+### 1. Frontend (React + Vite)
+- Dashboard, meal-history, manual-food-entry, chat, profile, and voice-logger UI
+- The current plate-scanner screen is presentation/mock data; it does not call `/meals/photo` yet
 
 ### 2. FastAPI Backend
 - Single gateway serving all inference endpoints (see `API_SPEC.md`)
 - Routes requests to vision, portion, speech, guardrail, and RAG modules
-- Stateless request handling; persistence delegated to PostgreSQL
+- Local development persists to SQLite; PostgreSQL is optional
 
 ### 3. Vision Pipeline
-- **YOLO26n-Seg**: instance segmentation — detects each food item + pixel mask on the plate
-- **ResNet/EfficientNet**: secondary classification pass to refine ambiguous item labels
-- Output: list of `{item_label, mask, bounding_box, confidence}`
+- **YOLO26n-Seg**: a local, mask-capable checkpoint loaded only when `YOLO_CHECKPOINT_PATH` points to an existing file
+- The detector requires the Ultralytics `segment` task and returns `{food_label, confidence, pixel_area}` internally
+- The official pretrained checkpoint is COCO-only. A custom checkpoint fine-tuned on annotated Indian-food polygons is required for nutrition labels such as chapati or dal
+- Classification refinement and annotated-image output are not implemented
 
 ### 4. Portion Estimation
-- Converts segmented area → real-world volume using a reference object (e.g., a plate/coin of known size) or depth-camera data where available
+- Converts segmented area using `reference_object_px` and `reference_object_real_cm` supplied with the photo request
 - Volume → grams via food-density lookup table
-- Grams → calories/macros via a nutrition database join
+- Grams → calories/macros via the local nutrition reference data
+- Depth-camera scaling is not implemented. Results are estimates, not measured values.
 
 ### 5. Guardrail Layer
 - Runs inline between inference and response
@@ -55,8 +56,8 @@
 - Blocks or warns on conflicts
 
 ### 6. RAG Chatbot
-- ChromaDB vector store populated from curated, verified ICMR guideline documents and nutrition texts
-- LangChain/LlamaIndex handles retrieval + prompt orchestration
+- ChromaDB vector store populated from curated ICMR guideline documents and nutrition texts
+- The backend builds prompts and calls Anthropic directly when configured; it returns retrieved text when no LLM provider is enabled
 - Restricts LLM responses to grounded context to avoid hallucinated medical claims
 
 ### 7. Speech / Code-Mixed Logging
@@ -65,11 +66,11 @@
 - Parsed entries feed into the same portion/macro pipeline as photo-based logging
 
 ### 8. Data Layer
-- **PostgreSQL**: user profiles, meal logs, macro history
-- **TimescaleDB** (extension on Postgres): time-series health metrics (weight, blood sugar, etc.)
+- **SQLite by default**: user profiles, meal logs, macro history, and health metrics
+- **PostgreSQL** is supported through `DATABASE_URL`; TimescaleDB hypertables are a production follow-up, not enabled by this repository
 - **ChromaDB**: vector store for the RAG knowledge base, kept separate from relational data
 
 ## Design Principles
-- **Safety-first**: the guardrail layer sits inline, not as an afterthought — nothing reaches the UI unchecked.
+- **Safety-first**: recognized food items are checked against the user's profile before being stored. Unknown nutrition items remain flagged for review.
 - **Grounded, not generative-only**: the chatbot never answers outside its retrieved context.
 - **Multi-item by default**: single-dish assumption is treated as the exception, not the norm.
