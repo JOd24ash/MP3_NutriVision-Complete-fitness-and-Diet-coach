@@ -38,17 +38,26 @@ class ProfileResponse(BaseModel):
 
 
 class ProfileUpdateRequest(BaseModel):
-    allergies: List[str]
-    conditions: List[str]
+    allergies: Optional[List[str]] = Field(default_factory=list)
+    conditions: Optional[List[str]] = Field(default_factory=list)
+
+    @field_validator("allergies", "conditions", mode="before")
+    @classmethod
+    def coerce_values(cls, values):
+        if values is None:
+            return []
+        if isinstance(values, str):
+            values = [values]
+        return [v for v in values if v and str(v).strip().lower() != "none"]
 
     @field_validator("allergies", "conditions")
     @classmethod
-    def validate_values(cls, values: List[str], info):
+    def validate_values(cls, values: Optional[List[str]], info):
         allowed = {
             "allergies": {"gluten", "wheat", "dairy", "peanuts", "tree_nuts", "soy", "egg", "fish", "shellfish", "legumes", "sesame"},
             "conditions": {"diabetes", "hypertension", "ckd", "high_cholesterol", "pcos", "thyroid"},
         }[info.field_name]
-        normalized = [value.strip().lower().replace(" ", "_") for value in values]
+        normalized = [str(value).strip().lower().replace(" ", "_") for value in (values or [])]
         invalid = sorted(set(normalized) - allowed)
         if invalid:
             raise ValueError(f"Unsupported {info.field_name}: {', '.join(invalid)}")
@@ -67,8 +76,9 @@ class MealItemCreateRequest(BaseModel):
 
 
 class ManualMealCreateRequest(BaseModel):
-    food_label: str = Field(min_length=1)
-    est_grams: float = Field(gt=0)
+    food_label: Optional[str] = None
+    est_grams: Optional[float] = None
+    items: Optional[List[MealItemCreateRequest]] = None
     meal_type: str = "snack"
 
 

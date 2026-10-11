@@ -139,10 +139,22 @@ export const api = {
         setStoredUser(updated);
         return updated;
       }
+      const rawAllergies = Array.isArray(data.allergies)
+        ? data.allergies
+        : (data.allergy && data.allergy !== 'none' ? [data.allergy] : []);
+      const rawConditions = Array.isArray(data.conditions)
+        ? data.conditions
+        : (data.medical_condition && data.medical_condition !== 'none' ? [data.medical_condition] : []);
+
+      const payload = {
+        allergies: rawAllergies.filter(Boolean),
+        conditions: rawConditions.filter(Boolean)
+      };
+
       const res = await fetchWithAuth(`${BASE_URL}/users/${userId}/profile`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
+        body: JSON.stringify(payload)
       });
       if (!res.ok) throw new Error('Failed to update medical profile');
       return await res.json();

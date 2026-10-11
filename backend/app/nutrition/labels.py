@@ -25,6 +25,13 @@ ALIASES: dict[str, str] = {
     "chapatti": "chapati",
     "chawal": "rice",
     "plain_rice": "rice",
+    "white_rice": "rice",
+    "steamed_rice": "rice",
+    "boiled_rice": "rice",
+    "cooked_rice": "rice",
+    "brown_rice": "rice",
+    "basmati_rice": "rice",
+    "bhat": "rice",
     "steamed_idli": "idli",
     "steamed_idly": "idli",
     "dal_fry": "dal",
@@ -46,6 +53,9 @@ ALIASES: dict[str, str] = {
     "chhena_kheeri": "kheer",
     "bandar_laddu": "ladoo",
     "gajar_ka_halwa": "halwa",
+    "tandoori_roti": "chapati",
+    "butter_roti": "chapati",
+    "aloo_paratha": "paratha",
 }
 
 
