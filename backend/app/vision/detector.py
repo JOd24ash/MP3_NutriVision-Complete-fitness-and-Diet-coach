@@ -19,6 +19,25 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import List, Optional, Protocol, TypedDict
 
+# Non-food COCO-80 class names that indicate an un-fine-tuned backbone.
+# If ALL detected class names from the checkpoint appear in this set the
+# checkpoint has not been fine-tuned on Indian food and we refuse to load it.
+_COCO_GENERIC_CLASSES = {
+    "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train",
+    "truck", "boat", "traffic light", "fire hydrant", "stop sign",
+    "parking meter", "bench", "bird", "cat", "dog", "horse", "sheep",
+    "cow", "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella",
+    "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard",
+    "sports ball", "kite", "baseball bat", "baseball glove", "skateboard",
+    "surfboard", "tennis racket", "bottle", "wine glass", "cup", "fork",
+    "knife", "spoon", "bowl", "banana", "apple", "sandwich", "orange",
+    "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair",
+    "couch", "potted plant", "bed", "dining table", "toilet", "tv",
+    "laptop", "mouse", "remote", "keyboard", "cell phone", "microwave",
+    "oven", "toaster", "sink", "refrigerator", "book", "clock", "vase",
+    "scissors", "teddy bear", "hair drier", "toothbrush",
+}
+
 
 class Detection(TypedDict, total=False):
     food_label: str
@@ -64,7 +83,23 @@ def vision_settings() -> VisionSettings:
 
 
 class YOLO26SegDetector:
-    """YOLO26 instance-segmentation detector for a local food checkpoint."""
+    """YOLO26 instance-segmentation detector for a local food checkpoint.
+
+    Requirements for the checkpoint file
+    -------------------------------------
+    * Must be a YOLO *segmentation* model (task == "segment").
+    * Must be fine-tuned on Indian-food classes — NOT a generic COCO-80
+      backbone.  Supplying the unmodified yolo26n-seg.pt that ships with
+      Ultralytics will raise RuntimeError because every class name in that
+      file is a COCO generic label (person, car, …).
+
+    How to get a compatible checkpoint
+    -----------------------------------
+    Fine-tune YOLO26n-Seg on an annotated Indian-food segmentation dataset
+    (e.g. FoodSeg103 subset, or a custom dataset labelled with the same
+    classes listed in backend/app/vision/labels.yaml).
+    See docs/ML_PIPELINE.md §Phase-2 for the recommended training pipeline.
+    """
 
     def __init__(self, settings: VisionSettings):
         from ultralytics import YOLO  # local import: optional dep until a checkpoint exists
@@ -77,6 +112,17 @@ class YOLO26SegDetector:
             raise RuntimeError(
                 "YOLO_CHECKPOINT_PATH must point to a YOLO26 segmentation checkpoint "
                 "(for example yolo26n-seg.pt or its fine-tuned best.pt), not detection-only yolo26n.pt"
+            )
+        # Guard: reject an unmodified COCO-backbone checkpoint that has never
+        # been fine-tuned on Indian food.  If every class name in the checkpoint
+        # is a COCO generic label the model will never produce a useful food label.
+        checkpoint_classes: set[str] = set(getattr(self.model, "names", {}).values())
+        if checkpoint_classes and checkpoint_classes.issubset(_COCO_GENERIC_CLASSES):
+            raise RuntimeError(
+                "YOLO_CHECKPOINT_PATH points to a COCO-80 checkpoint that is NOT trained on Indian food. "
+                f"Class names found: {sorted(checkpoint_classes)[:10]} … "
+                "Fine-tune on an Indian-food segmentation dataset first "
+                "(see docs/ML_PIPELINE.md §Phase-2 for instructions)."
             )
 
     def detect(self, image_bytes: bytes) -> List[Detection]:
@@ -173,7 +219,16 @@ def get_detector() -> Detector:
 def vision_status() -> dict:
     settings = vision_settings()
     if settings.checkpoint_path and os.path.isfile(settings.checkpoint_path):
-        return {"mode": "yolo26-seg", "model_name": os.path.basename(settings.checkpoint_path), "classes": []}
+        # Report actual class names from the checkpoint when ultralytics is
+        # available, so operators can verify the model is food-trained.
+        classes: list[str] = []
+        try:
+            from ultralytics import YOLO
+            model = YOLO(settings.checkpoint_path)
+            classes = list(getattr(model, "names", {}).values())
+        except Exception:  # ultralytics not installed, or file unreadable
+            pass
+        return {"mode": "yolo26-seg", "model_name": os.path.basename(settings.checkpoint_path), "classes": classes}
     if os.environ.get("USE_MOCK_DETECTOR", "false").lower() == "true":
         return {"mode": "mock", "model_name": "fixture", "classes": [d["food_label"] for d in MockYOLOSegDetector.FIXTURE]}
     return {"mode": "unavailable", "model_name": None, "classes": []}

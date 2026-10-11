@@ -28,63 +28,18 @@ export const PhotoScanner = () => {
   const [showGuidelines, setShowGuidelines] = useState(false);
   const [selectedItemIndex, setSelectedItemIndex] = useState(null);
 
-  // Detected food items matching reference screenshot
-  const [detectedItems, setDetectedItems] = useState([
-    {
-      id: 'chicken',
-      name: 'Grilled Chicken Breast',
-      category: '(Chicken)',
-      portion: '1 piece (100 g)',
-      calories: 165,
-      protein: 31,
-      carbs: 0,
-      fat: 4,
-      image: 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=150&auto=format&fit=crop&q=80',
-      emoji: '🍗'
-    },
-    {
-      id: 'rice',
-      name: 'Brown Rice',
-      category: '(Cooked)',
-      portion: '1 cup (150 g)',
-      calories: 216,
-      protein: 5,
-      carbs: 45,
-      fat: 2,
-      image: 'https://images.unsplash.com/photo-1536304993881-ff6e9eefa2a6?w=150&auto=format&fit=crop&q=80',
-      emoji: '🍚'
-    },
-    {
-      id: 'broccoli',
-      name: 'Broccoli',
-      category: '(Cooked)',
-      portion: '1 cup (100 g)',
-      calories: 55,
-      protein: 4,
-      carbs: 11,
-      fat: 0,
-      image: 'https://images.unsplash.com/photo-1459411621453-7b03977f4bfc?w=150&auto=format&fit=crop&q=80',
-      emoji: '🥦'
-    },
-    {
-      id: 'carrots',
-      name: 'Carrots',
-      category: '(Cooked)',
-      portion: '1/2 cup (75 g)',
-      calories: 31,
-      protein: 1,
-      carbs: 7,
-      fat: 0,
-      image: 'https://images.unsplash.com/photo-1598170845058-32b9d6a5da37?w=150&auto=format&fit=crop&q=80',
-      emoji: '🥕'
-    }
-  ]);
+  // Detected food items — populated from the real API response after upload.
+  // Starts empty so no placeholder data is shown before a scan.
+  const [detectedItems, setDetectedItems] = useState([]);
+  // Raw meal response from the backend (used for confirm/patch flows)
+  const [activeMealLog, setActiveMealLog] = useState(null);
 
-  // Estimated totals
-  const totalCalories = detectedItems.reduce((acc, item) => acc + item.calories, 0); // 467 kcal
-  const totalProtein = detectedItems.reduce((acc, item) => acc + item.protein, 0);   // 41 -> 42g
-  const totalCarbs = detectedItems.reduce((acc, item) => acc + item.carbs, 0);       // 63g
-  const totalFat = detectedItems.reduce((acc, item) => acc + item.fat, 0);           // 6g
+  // Computed totals — always derived from real API values
+  const totalCalories = detectedItems.reduce((acc, item) => acc + (item.calories || 0), 0);
+  const totalProtein  = detectedItems.reduce((acc, item) => acc + (item.protein  || 0), 0);
+  const totalCarbs    = detectedItems.reduce((acc, item) => acc + (item.carbs    || 0), 0);
+  const totalFat      = detectedItems.reduce((acc, item) => acc + (item.fat      || 0), 0);
+
 
   // Recent scans dataset
   const recentScans = [
@@ -134,7 +89,6 @@ export const PhotoScanner = () => {
     }
   ];
 
-  // File upload handler
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -157,6 +111,9 @@ export const PhotoScanner = () => {
     };
     reader.readAsDataURL(file);
 
+    // Clear previous results while the new image is being analysed.
+    setDetectedItems([]);
+    setActiveMealLog(null);
     setIsAnalyzing(true);
     try {
       const form = new FormData();
@@ -168,24 +125,36 @@ export const PhotoScanner = () => {
       const items = meal.items.map(item => ({
         id: item.id,
         name: item.food_label.replace(/_/g, ' '),
-        category: item.guardrail_status === 'unknown' ? '(review required)' : `(${Math.round((item.confidence || 0) * 100)}% confidence)`,
+        category: item.guardrail_status === 'unknown'
+          ? '(review required)'
+          : `(${Math.round((item.confidence || 0) * 100)}% confidence)`,
         portion: `${item.est_grams ?? '?'} g`,
-        calories: item.calories,
-        protein: item.protein_g,
-        carbs: item.carbs_g,
-        fat: item.fat_g,
+        // Use real API values; fall back to 0 so totals never show NaN.
+        calories: item.calories ?? 0,
+        protein:  item.protein_g ?? 0,
+        carbs:    item.carbs_g   ?? 0,
+        fat:      item.fat_g     ?? 0,
         image: '',
-        emoji: '🍽️'
+        emoji: '🍽️',
+        // Keep raw API fields for patch/confirm calls
+        _raw: item,
       }));
       setDetectedItems(items);
+      setActiveMealLog(meal);
       setActiveMeal?.(meal);
-      showToast?.('Review detected foods and confirm the saved meal.', 'success');
+      showToast?.(
+        meal.needs_manual_review
+          ? 'Some items need review — check labels marked "review required".'
+          : `Found ${items.length} item${items.length !== 1 ? 's' : ''}. Review and confirm to save.`,
+        'success'
+      );
     } catch (error) {
       showToast?.(error.message || 'Photo recognition failed.', 'danger');
     } finally {
       setIsAnalyzing(false);
     }
   };
+
 
   // Simulated scan trigger
   const runSimulatedScan = () => {
@@ -353,6 +322,26 @@ export const PhotoScanner = () => {
             </div>
 
             {/* Food items grid — 2-column card layout */}
+            {detectedItems.length === 0 ? (
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '32px 16px',
+                color: '#9ca3af',
+                gap: 10,
+                textAlign: 'center'
+              }}>
+                <span style={{ fontSize: '2.5rem' }}>🍽️</span>
+                <p style={{ margin: 0, fontSize: '0.92rem', fontWeight: 600 }}>
+                  {isAnalyzing ? 'Analysing your meal…' : 'Upload a meal photo to detect food items'}
+                </p>
+                <p style={{ margin: 0, fontSize: '0.82rem' }}>
+                  {isAnalyzing ? 'This may take a few seconds.' : 'Results will appear here after recognition.'}
+                </p>
+              </div>
+            ) : (
             <div className="scanner-items-grid">
               {detectedItems.map((item, idx) => (
                 <div
@@ -389,6 +378,8 @@ export const PhotoScanner = () => {
                 </div>
               ))}
             </div>
+            )}
+
           </div>
 
           {/* Bottom Box: Total Nutrition (Estimated) */}
@@ -427,7 +418,7 @@ export const PhotoScanner = () => {
                 fontSize: '0.8rem'
               }}>
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#e11d48' }} />
-                <span>42g Protein</span>
+                <span>{Math.round(totalProtein)}g Protein</span>
               </div>
 
               {/* Carbs */}
@@ -445,8 +436,9 @@ export const PhotoScanner = () => {
                 fontSize: '0.8rem'
               }}>
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#d97706' }} />
-                <span>63g Carbs</span>
+                <span>{Math.round(totalCarbs)}g Carbs</span>
               </div>
+
 
               {/* Fat */}
               <div style={{
@@ -463,7 +455,8 @@ export const PhotoScanner = () => {
                 fontSize: '0.8rem'
               }}>
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#7c3aed' }} />
-                <span>6g Fat</span>
+                <span>{Math.round(totalFat)}g Fat</span>
+
               </div>
             </div>
           </div>
