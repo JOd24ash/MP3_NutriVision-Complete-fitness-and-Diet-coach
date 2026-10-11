@@ -69,6 +69,7 @@ app.add_middleware(
 )
 
 API_PREFIX = "/api/v1"
+MAX_PHOTO_BYTES = 10 * 1024 * 1024
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{API_PREFIX}/auth/login")
 
 
@@ -280,15 +281,19 @@ async def log_meal_photo(
 ):
     require_self(user_id, current_user)
     image_bytes = await image.read()
+    if not image.content_type or not image.content_type.startswith("image/"):
+        raise HTTPException(status_code=415, detail="Upload an image file")
+    if not image_bytes or len(image_bytes) > MAX_PHOTO_BYTES:
+        raise HTTPException(status_code=413, detail="Image must be between 1 byte and 10 MB")
 
     try:
         detections = get_detector().detect(image_bytes)
-    except RuntimeError as error:
+        food_items = estimate_meal_from_detections(detections, reference_object_px, reference_object_real_cm)
+    except (RuntimeError, ValueError) as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
     if not detections:
         raise HTTPException(status_code=422, detail="No items detected in image")
 
-    food_items = estimate_meal_from_detections(detections, reference_object_px, reference_object_real_cm)
     nutrition_results = [compute_item_nutrition(i) for i in food_items]
 
     profile = db.query(MedicalProfile).filter(MedicalProfile.user_id == user_id).first()

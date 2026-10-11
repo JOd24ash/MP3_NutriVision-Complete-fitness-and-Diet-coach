@@ -9,6 +9,9 @@ ALIASES = {
     "phulka": "chapati", "chapatti": "chapati", "chawal": "rice", "plain_rice": "rice",
     "chana_masala": "chole", "kidney_beans": "rajma", "chai": "masala_chai",
     "anda": "boiled_egg", "egg": "boiled_egg", "steamed_idly": "idli",
+    "chana_masala": "chole", "dal_tadka": "dal", "kadai_paneer": "paneer",
+    "chicken_tikka_masala": "chicken_curry", "gajar_ka_halwa": "halwa",
+    "bandar_laddu": "ladoo",
 }
 
 

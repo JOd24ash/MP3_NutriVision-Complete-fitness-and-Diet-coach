@@ -94,6 +94,8 @@ uvicorn app.main:app --reload
 | `DATABASE_URL` | DB connection string (default: `sqlite:///./nutrivision.db`) |
 | `JWT_SECRET_KEY` | Secret key for JWT auth — **change in production** |
 | `YOLO_CHECKPOINT_PATH` | Local path to a YOLO26 segmentation checkpoint; use a fine-tuned food `best.pt` in production |
+| `INDIAN_FOOD_CLASSIFIER_ENABLED` | Set `true` to refine YOLO regions with `dima806/indian_food_image_detection` (downloads lazily on first use) |
+| `INDIAN_FOOD_CLASSIFIER_CONFIDENCE` | Minimum classifier score required to replace a YOLO label (default: `0.60`) |
 | `YOLO_CONFIDENCE` | Minimum detection confidence (default: `0.25`) |
 | `YOLO_IMAGE_SIZE` | YOLO inference image size (default: `640`) |
 | `YOLO_DEVICE` | Optional Ultralytics device, e.g. `cpu`, `0`, or `cuda:0` |
@@ -102,6 +104,8 @@ uvicorn app.main:app --reload
 | `NUTRIVISION_LLM_MODEL` | LLM model name (default: `claude-sonnet-4-5`) |
 
 > Photos are processed locally by a mask-capable YOLO26 model. `yolo26n.pt` is detection-only and is rejected because portion estimation needs masks. The official `yolo26n-seg.pt` knows COCO classes only; fine-tune it on annotated Indian-food polygons before using the result for nutrition. Set `USE_MOCK_DETECTOR=true` only for explicit demo mode.
+
+> The optional `dima806/indian_food_image_detection` model is a whole-image classifier. NutriVision runs it only on YOLO segmentation crops; it cannot by itself detect every dish in a mixed meal. Labels below the configured confidence threshold or absent from the nutrition catalogue stay uncertain and require user correction.
 
 ### Vision setup and validation
 

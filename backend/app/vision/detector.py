@@ -20,10 +20,15 @@ from functools import lru_cache
 from typing import List, Optional, Protocol, TypedDict
 
 
-class Detection(TypedDict):
+class Detection(TypedDict, total=False):
     food_label: str
     confidence: float
     pixel_area: float
+    bbox: list[float]
+    detection_confidence: float
+    classifier_label: str
+    classifier_confidence: float
+    uncertain: bool
 
 
 class Detector(Protocol):
@@ -97,10 +102,14 @@ class YOLO26SegDetector:
                 confidence = float(box.conf[0])
                 # mask.xy gives polygon points; pixel area via the shoelace formula
                 pixel_area = _polygon_area(mask.xy[0]) if mask.xy else 0.0
-                detections.append(
-                    {"food_label": label, "confidence": confidence, "pixel_area": pixel_area}
-                )
-        return detections
+                detection: Detection = {"food_label": label, "confidence": confidence, "pixel_area": pixel_area}
+                if hasattr(box, "xyxy"):
+                    detection["bbox"] = [float(value) for value in box.xyxy[0].tolist()]
+                detections.append(detection)
+        if detections:
+            from .indian_food_classifier import refine_detection
+            detections = [refine_detection(image, detection) for detection in detections]
+        return _deduplicate(detections)
 
 
 class MockYOLOSegDetector:
@@ -126,6 +135,26 @@ def _polygon_area(points) -> float:
         x2, y2 = points[(i + 1) % n]
         area += x1 * y2 - x2 * y1
     return abs(area) / 2.0
+
+
+def _deduplicate(detections: List[Detection]) -> List[Detection]:
+    """YOLO normally suppresses overlaps; retain the highest-confidence duplicate."""
+    kept: List[Detection] = []
+    for detection in sorted(detections, key=lambda item: item["confidence"], reverse=True):
+        if any(_iou(detection.get("bbox"), item.get("bbox")) >= 0.8 for item in kept):
+            continue
+        kept.append(detection)
+    return kept
+
+
+def _iou(first, second) -> float:
+    if not first or not second:
+        return 0.0
+    left, top = max(first[0], second[0]), max(first[1], second[1])
+    right, bottom = min(first[2], second[2]), min(first[3], second[3])
+    overlap = max(0.0, right - left) * max(0.0, bottom - top)
+    union = (first[2] - first[0]) * (first[3] - first[1]) + (second[2] - second[0]) * (second[3] - second[1]) - overlap
+    return overlap / union if union > 0 else 0.0
 
 
 @lru_cache(maxsize=4)

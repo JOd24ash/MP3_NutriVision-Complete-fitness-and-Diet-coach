@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
+import { api } from '../../api/client';
 import {
   Camera,
   Upload,
@@ -17,7 +18,7 @@ import {
 } from 'lucide-react';
 
 export const PhotoScanner = () => {
-  const { setActiveTab, showToast } = useApp();
+  const { setActiveTab, showToast, user, setActiveMeal } = useApp();
   const fileInputRef = useRef(null);
 
   // Plate image state
@@ -28,7 +29,7 @@ export const PhotoScanner = () => {
   const [selectedItemIndex, setSelectedItemIndex] = useState(null);
 
   // Detected food items matching reference screenshot
-  const detectedItems = [
+  const [detectedItems, setDetectedItems] = useState([
     {
       id: 'chicken',
       name: 'Grilled Chicken Breast',
@@ -77,7 +78,7 @@ export const PhotoScanner = () => {
       image: 'https://images.unsplash.com/photo-1598170845058-32b9d6a5da37?w=150&auto=format&fit=crop&q=80',
       emoji: '🥕'
     }
-  ];
+  ]);
 
   // Estimated totals
   const totalCalories = detectedItems.reduce((acc, item) => acc + item.calories, 0); // 467 kcal
@@ -134,16 +135,56 @@ export const PhotoScanner = () => {
   ];
 
   // File upload handler
-  const handleFileUpload = (e) => {
+  const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (!user?.id) {
+      showToast?.('Sign in before analyzing a meal.', 'danger');
+      return;
+    }
+
+    const referencePixels = window.prompt('Reference object width in this image (pixels):');
+    const referenceCm = window.prompt('Actual width of that reference object (cm):');
+    if (!(Number(referencePixels) > 0 && Number(referenceCm) > 0)) {
+      showToast?.('A valid reference measurement is required for portion estimates.', 'danger');
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = () => {
       setPlateImage(reader.result);
-      runSimulatedScan();
     };
     reader.readAsDataURL(file);
+
+    setIsAnalyzing(true);
+    try {
+      const form = new FormData();
+      form.append('image', file);
+      form.append('user_id', user.id);
+      form.append('reference_object_px', referencePixels);
+      form.append('reference_object_real_cm', referenceCm);
+      const meal = await api.meals.logPhoto(form);
+      const items = meal.items.map(item => ({
+        id: item.id,
+        name: item.food_label.replace(/_/g, ' '),
+        category: item.guardrail_status === 'unknown' ? '(review required)' : `(${Math.round((item.confidence || 0) * 100)}% confidence)`,
+        portion: `${item.est_grams ?? '?'} g`,
+        calories: item.calories,
+        protein: item.protein_g,
+        carbs: item.carbs_g,
+        fat: item.fat_g,
+        image: '',
+        emoji: '🍽️'
+      }));
+      setDetectedItems(items);
+      setActiveMeal?.(meal);
+      showToast?.('Review detected foods and confirm the saved meal.', 'success');
+    } catch (error) {
+      showToast?.(error.message || 'Photo recognition failed.', 'danger');
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   // Simulated scan trigger
