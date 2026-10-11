@@ -129,18 +129,6 @@ export const PhotoScanner = () => {
       return;
     }
 
-    // Optional reference object measurement with safe fallback
-    const refPxInput = window.prompt('Optional: Reference object width in pixels (or leave blank to use standard portion sizes):');
-    let referencePixels = null;
-    let referenceCm = null;
-    if (refPxInput && Number(refPxInput) > 0) {
-      const refCmInput = window.prompt('Actual width of reference object in cm (e.g. 8.5 for card, 2.5 for coin):');
-      if (refCmInput && Number(refCmInput) > 0) {
-        referencePixels = Number(refPxInput);
-        referenceCm = Number(refCmInput);
-      }
-    }
-
     const reader = new FileReader();
     reader.onload = () => {
       setPlateImage(reader.result);
@@ -156,10 +144,6 @@ export const PhotoScanner = () => {
       const form = new FormData();
       form.append('image', file);
       form.append('user_id', user.id);
-      if (referencePixels && referenceCm) {
-        form.append('reference_object_px', referencePixels);
-        form.append('reference_object_real_cm', referenceCm);
-      }
       const meal = await api.meals.logPhoto(form);
       const items = formatMealItems(meal);
       setDetectedItems(items);
@@ -174,6 +158,9 @@ export const PhotoScanner = () => {
       showToast?.(error.message || 'Photo recognition failed.', 'danger');
     } finally {
       setIsAnalyzing(false);
+      if (e.target) {
+        e.target.value = '';
+      }
     }
   };
 
@@ -282,7 +269,7 @@ export const PhotoScanner = () => {
               }}>
                 <RefreshCw size={14} />
               </div>
-              <span>{isAnalyzing ? 'Analyzing...' : 'Analyzing...'}</span>
+              <span>{isAnalyzing ? 'Analyzing...' : 'Ready'}</span>
             </div>
           </div>
 

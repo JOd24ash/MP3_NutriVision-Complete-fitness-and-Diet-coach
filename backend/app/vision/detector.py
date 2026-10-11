@@ -73,7 +73,7 @@ def vision_settings() -> VisionSettings:
         raise RuntimeError("YOLO_CONFIDENCE must be between 0 and 1")
     if image_size <= 0:
         raise RuntimeError("YOLO_IMAGE_SIZE must be greater than 0")
-    checkpoint_path = os.environ.get("YOLO_CHECKPOINT_PATH")
+    checkpoint_path = os.environ.get("YOLO_CHECKPOINT_PATH") or None
     return VisionSettings(
         checkpoint_path=checkpoint_path,
         confidence=confidence,
