@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
+import { api } from '../../api/client';
 import {
   Mic, Square, Sparkles, Clock, ChevronRight,
   Lightbulb, Check, Volume2, ArrowRight
@@ -177,21 +178,53 @@ export const VoiceLoggerReal = () => {
             if (e.data.size > 0) audioChunksRef.current.push(e.data);
           };
 
-          recorder.onstop = () => {
+          recorder.onstop = async () => {
             stream.getTracks().forEach(t => t.stop());
-            handleProcessText('I ate 2 chapatis, dal and sabzi');
+            mediaRecorderRef.current = null;
+            setIsProcessing(true);
+            setStatusMessage('Transcribing your meal...');
+
+            try {
+              const audio = new Blob(audioChunksRef.current, {
+                type: recorder.mimeType || 'audio/webm'
+              });
+              const formData = new FormData();
+              formData.append('user_id', user.id);
+              formData.append('audio', audio, 'recording.webm');
+
+              const meal = await api.meals.logVoice(formData);
+              const name = meal.items.map(item => item.food_label).join(' + ');
+
+              setTranscript(meal.transcript || 'Meal logged from your recording.');
+              setActiveMeal(meal);
+              setRecentLogs(prev => [{
+                id: meal.meal_log_id,
+                name,
+                time: 'Just now',
+                kcal: meal.total.calories,
+                p: meal.total.protein_g,
+                c: meal.total.carbs_g,
+                f: meal.total.fat_g,
+                image: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=150&auto=format&fit=crop&q=80'
+              }, ...prev.slice(0, 3)]);
+
+              showToast(`Logged ${name} via voice.`, 'success');
+            } catch (error) {
+              showToast(error.message || 'Could not process the recording.', 'error');
+            } finally {
+              setIsProcessing(false);
+              setStatusMessage('Listening...');
+            }
           };
 
           mediaRecorderRef.current = recorder;
           recorder.start();
           setIsRecording(true);
         } else {
-          setIsRecording(true);
+          showToast('Your browser does not support microphone recording.', 'error');
         }
       } catch (err) {
-        // Fallback for environments without microphone permissions
-        setIsRecording(true);
-        showToast('Listening in simulation mode (speak naturally)', 'info');
+        showToast('Microphone permission is required to log a meal by voice.', 'error');
       }
     }
   };

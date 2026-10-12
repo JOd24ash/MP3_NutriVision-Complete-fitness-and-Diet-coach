@@ -14,15 +14,11 @@ import {
   Camera,
   PlusCircle,
   Mic,
-  Sparkles,
-  Lightbulb,
   Scale,
   Ruler,
   Activity,
   Sprout,
-  Leaf,
   ChevronRight,
-  Plus,
   ArrowRight
 } from 'lucide-react';
 
@@ -65,7 +61,7 @@ const DonutGauge = ({ percent, color, track = '#f3f4f6', size = 52, stroke = 5 }
 };
 
 export const TodaySummary = () => {
-  const { user, setActiveTab, setIsChatOpen, setIsProfileModalOpen, showToast } = useApp();
+  const { user, setActiveTab, setIsProfileModalOpen, showToast } = useApp();
   const [summary, setSummary] = useState(null);
   const [metricTab, setMetricTab] = useState('calories');
   const [waterMl, setWaterMl] = useState(1200);
@@ -463,51 +459,6 @@ export const TodaySummary = () => {
             </div>
           </div>
 
-          {/* Bottom Action Buttons */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 14 }}>
-            <button
-              onClick={() => setActiveTab('manual')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 6,
-                padding: '10px 14px',
-                borderRadius: 12,
-                border: 'none',
-                background: '#ecfdf5',
-                color: '#15803d',
-                fontWeight: 700,
-                fontSize: '0.84rem',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              <Plus size={15} />
-              <span>Add Food</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('scan')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 6,
-                padding: '10px 14px',
-                borderRadius: 12,
-                border: '1.5px solid #e5e7eb',
-                background: '#ffffff',
-                color: '#374151',
-                fontWeight: 700,
-                fontSize: '0.84rem',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              <Camera size={15} />
-              <span>Scan Meal</span>
-            </button>
-          </div>
         </div>
 
         {/* 2. Weekly Nutrition Trend */}
@@ -629,7 +580,7 @@ export const TodaySummary = () => {
           </div>
         </div>
 
-        {/* 3. Right Column: Quick Actions + Water + AI Coach */}
+        {/* 3. Right Column: Quick Actions + Water */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           
           {/* Quick Actions Card */}
@@ -735,59 +686,6 @@ export const TodaySummary = () => {
             </div>
           </div>
 
-          {/* AI Nutrition Coach Card */}
-          <div className="dash-panel" style={{ padding: '16px 18px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Sparkles size={16} style={{ color: '#8b5cf6' }} />
-                <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#18181b' }}>AI Nutrition Coach</span>
-              </div>
-              <span style={{ fontSize: '0.68rem', fontWeight: 700, background: '#ede9fe', color: '#6d28d9', padding: '2px 8px', borderRadius: 6 }}>
-                Beta
-              </span>
-            </div>
-
-            {/* Tip bubble */}
-            <div style={{
-              display: 'flex',
-              gap: 10,
-              padding: '10px 12px',
-              borderRadius: 12,
-              background: '#f5f3ff',
-              border: '1px solid #ddd6fe',
-              marginBottom: 12
-            }}>
-              <Lightbulb size={18} style={{ color: '#8b5cf6', flexShrink: 0, marginTop: 2 }} />
-              <p style={{ margin: 0, fontSize: '0.76rem', color: '#4c1d95', lineHeight: 1.45 }}>
-                You're doing great with your protein intake today! Consider adding more healthy fats (like nuts or seeds) to meet your daily goal.
-              </p>
-            </div>
-
-            {/* CTA */}
-            <button
-              onClick={() => setIsChatOpen(true)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 6,
-                width: '100%',
-                padding: '10px',
-                borderRadius: 12,
-                border: 'none',
-                background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
-                color: '#ffffff',
-                fontWeight: 700,
-                fontSize: '0.82rem',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-                boxShadow: '0 4px 12px rgba(139, 92, 246, 0.25)'
-              }}
-            >
-              <span>Ask AI Coach</span>
-              <ArrowRight size={14} />
-            </button>
-          </div>
         </div>
       </div>
 
@@ -863,46 +761,6 @@ export const TodaySummary = () => {
             </div>
           </div>
 
-          {/* Motivation Callout Card */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '18px 22px',
-            borderRadius: 18,
-            background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
-            border: '1.5px solid #a7f3d0',
-            position: 'relative',
-            overflow: 'hidden'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, position: 'relative', zIndex: 2 }}>
-              <div style={{ color: '#059669', marginTop: 2 }}>
-                <Sprout size={24} />
-              </div>
-              <div>
-                <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#065f46' }}>
-                  Small steps. Big results.
-                </div>
-                <div style={{ fontSize: '0.78rem', color: '#047857', marginTop: 4, lineHeight: 1.45, maxWidth: 300 }}>
-                  Track your meals, stay consistent, and let NutriVision help you build a healthier you!
-                </div>
-              </div>
-            </div>
-            <div style={{
-              position: 'relative',
-              zIndex: 1,
-              width: 44,
-              height: 44,
-              borderRadius: '50%',
-              background: 'rgba(16, 185, 129, 0.15)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#059669'
-            }}>
-              <Leaf size={24} />
-            </div>
-          </div>
         </div>
       </div>
 
