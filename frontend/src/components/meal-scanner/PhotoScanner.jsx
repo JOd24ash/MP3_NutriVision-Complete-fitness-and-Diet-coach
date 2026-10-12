@@ -665,9 +665,238 @@ export const PhotoScanner = () => {
                             ));
                           })()}
                         </div>
+
+                        {/* Delete button — remove wrong detection */}
+                        <button
+                          type="button"
+                          title="Remove this item"
+                          onClick={() => handleDeleteItem(item.id)}
+                          disabled={isUpdating}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '6px',
+                            borderRadius: 7,
+                            border: 'none',
+                            background: '#fee2e2',
+                            color: '#dc2626',
+                            cursor: isUpdating ? 'not-allowed' : 'pointer',
+                            flexShrink: 0,
+                            transition: 'background 0.15s ease',
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.background = '#fecaca'}
+                          onMouseLeave={e => e.currentTarget.style.background = '#fee2e2'}
+                        >
+                          <Trash2 size={15} />
+                        </button>
                       </div>
                     </div>
                   ))}
+                </div>
+
+                {/* ── Add Missing Item inline (visible in weight-entry mode) ── */}
+                <div style={{ marginTop: 4 }}>
+                  {!isAddingItem ? (
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingItem(true)}
+                      style={{
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 8,
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        border: '1.5px dashed #f59e0b',
+                        background: '#fffbeb',
+                        color: '#b45309',
+                        fontWeight: 700,
+                        fontSize: '0.85rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <Plus size={16} />
+                      <span>Item not detected? Add it manually</span>
+                    </button>
+                  ) : (
+                    <div style={{
+                      padding: '14px',
+                      borderRadius: 12,
+                      background: '#ffffff',
+                      border: '1.5px solid #fde68a',
+                      boxShadow: '0 2px 10px rgba(0,0,0,0.06)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 10,
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#b45309', display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Plus size={16} /> Add Missing Food Item
+                        </span>
+                        <button
+                          onClick={() => { setIsAddingItem(false); setNewItemLabel(''); setNewItemGrams(150); }}
+                          style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', padding: 2 }}
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+
+                      {/* Quick suggestion chips */}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {[
+                          { label: 'Rice', grams: 150 },
+                          { label: 'Chapati', grams: 80 },
+                          { label: 'Dal', grams: 150 },
+                          { label: 'Puri', grams: 70 },
+                          { label: 'Salad', grams: 50 },
+                          { label: 'Dahi', grams: 100 },
+                          { label: 'Sabzi', grams: 100 },
+                          { label: 'Paratha', grams: 80 },
+                        ].map((chip) => (
+                          <button
+                            key={chip.label}
+                            type="button"
+                            onClick={() => { setNewItemLabel(chip.label); setNewItemGrams(chip.grams); }}
+                            style={{
+                              padding: '4px 10px',
+                              borderRadius: 14,
+                              border: '1px solid #fde68a',
+                              background: newItemLabel.toLowerCase() === chip.label.toLowerCase() ? '#f59e0b' : '#fffbeb',
+                              color: newItemLabel.toLowerCase() === chip.label.toLowerCase() ? '#ffffff' : '#b45309',
+                              fontSize: '0.74rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            + {chip.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px', gap: 8 }}>
+                        <div>
+                          <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#4b5563', display: 'block', marginBottom: 3 }}>
+                            Food Name
+                          </label>
+                          <input
+                            type="text"
+                            value={newItemLabel}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setNewItemLabel(val);
+                              const p = getPieceFoodInfo(val);
+                              if (p && (!newItemGrams || newItemGrams === 150)) {
+                                setNewItemGrams(p.grams * 2);
+                              }
+                            }}
+                            placeholder="e.g. rice, roti, dal, sabzi"
+                            style={{
+                              width: '100%',
+                              boxSizing: 'border-box',
+                              padding: '8px 10px',
+                              borderRadius: 8,
+                              border: '1.5px solid #fde68a',
+                              fontSize: '0.84rem',
+                              outline: 'none',
+                              background: '#fffbeb',
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#4b5563', display: 'block', marginBottom: 3 }}>
+                            Portion (g)
+                          </label>
+                          <input
+                            type="number"
+                            min="10"
+                            max="1000"
+                            value={newItemGrams}
+                            onChange={(e) => setNewItemGrams(e.target.value)}
+                            style={{
+                              width: '100%',
+                              boxSizing: 'border-box',
+                              padding: '8px 10px',
+                              borderRadius: 8,
+                              border: '1.5px solid #fde68a',
+                              fontSize: '0.84rem',
+                              outline: 'none',
+                              background: '#fffbeb',
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Piece selector for chapati/roti etc */}
+                      {(() => {
+                        const pieceInfo = getPieceFoodInfo(newItemLabel);
+                        if (!pieceInfo) return null;
+                        return (
+                          <div style={{ background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: 10, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#b45309', display: 'flex', alignItems: 'center', gap: 5 }}>
+                                <span>{pieceInfo.emoji}</span> How many {pieceInfo.name}s?
+                              </span>
+                              <span style={{ fontSize: '0.72rem', color: '#92400e', fontWeight: 600 }}>~{pieceInfo.grams}g each</span>
+                            </div>
+                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                              {[1, 2, 3, 4, 5, 6].map((num) => {
+                                const g = num * pieceInfo.grams;
+                                const isSel = Number(newItemGrams) === g;
+                                return (
+                                  <button
+                                    key={num}
+                                    type="button"
+                                    onClick={() => setNewItemGrams(g)}
+                                    style={{
+                                      padding: '5px 14px',
+                                      borderRadius: 8,
+                                      border: isSel ? '1.5px solid #f59e0b' : '1px solid #fde68a',
+                                      background: isSel ? '#f59e0b' : '#ffffff',
+                                      color: isSel ? '#ffffff' : '#b45309',
+                                      fontSize: '0.8rem',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    {num} {num === 1 ? 'pc' : 'pcs'}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      <button
+                        type="button"
+                        onClick={() => handleAddNewItem(newItemLabel, newItemGrams)}
+                        disabled={!newItemLabel.trim() || isUpdating}
+                        style={{
+                          width: '100%',
+                          padding: '10px 14px',
+                          borderRadius: 10,
+                          border: 'none',
+                          background: newItemLabel.trim() ? '#f59e0b' : '#e5e7eb',
+                          color: newItemLabel.trim() ? '#ffffff' : '#9ca3af',
+                          fontWeight: 700,
+                          fontSize: '0.88rem',
+                          cursor: newItemLabel.trim() ? 'pointer' : 'not-allowed',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 8,
+                          boxShadow: newItemLabel.trim() ? '0 2px 8px rgba(245,158,11,0.3)' : 'none',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <Plus size={16} />
+                        <span>{isUpdating ? 'Adding…' : 'Add to Plate & Calculate Nutrition'}</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>

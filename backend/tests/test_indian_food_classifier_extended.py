@@ -160,10 +160,10 @@ class TestNutritionLookupForHFLabels:
         assert result.nutrition is None
 
     def test_unsupported_food_returns_unknown_status_and_never_invents_nutrition(self):
-        """Unmapped items like paneer_butter_masala or naan must return unknown status without invented macros."""
+        """Unmapped items like kadai_paneer or naan must return unknown status without invented macros."""
         from app.nutrition.calculator import compute_item_nutrition
         from app.nutrition.models import FoodItemInput
-        unsupported = ["paneer_butter_masala", "naan", "boondi", "rasgulla", "unni_appam"]
+        unsupported = ["kadai_paneer", "naan", "boondi", "sandesh", "unni_appam"]
         for food in unsupported:
             result = compute_item_nutrition(FoodItemInput(food_label=food, estimated_grams=150))
             assert result.nutrition_status == "unknown", f"{food} should have unknown nutrition status"
