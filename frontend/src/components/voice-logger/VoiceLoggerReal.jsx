@@ -197,9 +197,9 @@ export const VoiceLoggerReal = () => {
   };
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div className="voice-logger-page" style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* ── Top Green Banner Card ─────────────────────────────── */}
-      <div style={{
+      <div className="voice-logger-header" style={{
         background: '#ecfdf5',
         borderRadius: 16,
         border: '1px solid #a7f3d0',
@@ -212,7 +212,7 @@ export const VoiceLoggerReal = () => {
         boxShadow: '0 1px 3px rgba(16,185,129,0.06)'
       }}>
         {/* Left: Icon + Heading */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, minWidth: 280, flex: 1 }}>
+        <div className="voice-logger-heading" style={{ display: 'flex', alignItems: 'center', gap: 16, minWidth: 280, flex: 1 }}>
           <div style={{
             width: 48,
             height: 48,
@@ -281,7 +281,7 @@ export const VoiceLoggerReal = () => {
       </div>
 
       {/* ── Main Two-Column Layout ───────────────────────────── */}
-      <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+      <div className="voice-logger-content" style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
         {/* Left Column: Start Recording */}
         <div style={{
           flex: 1,
@@ -483,7 +483,7 @@ export const VoiceLoggerReal = () => {
         </div>
 
         {/* Right Column: Recent Voice Logs & AI Nutrition Insight */}
-        <div style={{ width: 380, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div className="voice-logger-sidebar" style={{ width: 380, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Card 1: Recent Voice Logs */}
           <div style={{
             background: '#fff',

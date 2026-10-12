@@ -119,15 +119,17 @@ class YOLOv8SegDetector:
             raise RuntimeError("YOLOv8 segmentation checkpoint is missing; set YOLO_CHECKPOINT_PATH to a local .pt file")
         self.settings = settings
         self.model = YOLO(settings.checkpoint_path)
+        checkpoint_classes: set[str] = set(getattr(self.model, "names", {}).values())
         if getattr(self.model, "task", None) != "segment":
-            raise RuntimeError(
-                "YOLO_CHECKPOINT_PATH must point to a YOLOv8 segmentation checkpoint "
-                "(for example yolov8n-seg.pt or its fine-tuned best.pt), not detection-only yolov8n.pt"
-            )
+            is_food_detector = bool(checkpoint_classes and not checkpoint_classes.issubset(_COCO_GENERIC_CLASSES))
+            if not is_food_detector:
+                raise RuntimeError(
+                    "YOLO_CHECKPOINT_PATH must point to a YOLOv8 segmentation checkpoint "
+                    "(for example yolov8n-seg.pt or its fine-tuned best.pt), not detection-only yolov8n.pt"
+                )
         # Guard: reject an unmodified COCO-backbone checkpoint that has never
         # been fine-tuned on Indian food.  If every class name in the checkpoint
         # is a COCO generic label the model will never produce a useful food label.
-        checkpoint_classes: set[str] = set(getattr(self.model, "names", {}).values())
         if checkpoint_classes and checkpoint_classes.issubset(_COCO_GENERIC_CLASSES):
             raise RuntimeError(
                 "YOLO_CHECKPOINT_PATH points to a COCO-80 checkpoint that is NOT trained on Indian food. "
@@ -152,17 +154,31 @@ class YOLOv8SegDetector:
 
         detections: List[Detection] = []
         for result in results:
-            if result.masks is None:
-                continue
-            for box, mask in zip(result.boxes, result.masks):
-                label = result.names[int(box.cls[0])]
-                confidence = float(box.conf[0])
-                # mask.xy gives polygon points; pixel area via the shoelace formula
-                pixel_area = _polygon_area(mask.xy[0]) if mask.xy else 0.0
-                detection: Detection = {"food_label": label, "confidence": confidence, "pixel_area": pixel_area}
-                if hasattr(box, "xyxy"):
-                    detection["bbox"] = [float(value) for value in box.xyxy[0].tolist()]
-                detections.append(detection)
+            if getattr(result, "masks", None) is not None:
+                for box, mask in zip(result.boxes, result.masks):
+                    label = result.names[int(box.cls[0])]
+                    confidence = float(box.conf[0])
+                    # mask.xy gives polygon points; pixel area via the shoelace formula
+                    pixel_area = _polygon_area(mask.xy[0]) if mask.xy else 0.0
+                    detection: Detection = {"food_label": label, "confidence": confidence, "pixel_area": pixel_area}
+                    if hasattr(box, "xyxy"):
+                        detection["bbox"] = [float(value) for value in box.xyxy[0].tolist()]
+                    detections.append(detection)
+            elif getattr(result, "boxes", None) is not None:
+                for box in result.boxes:
+                    label = result.names[int(box.cls[0])]
+                    confidence = float(box.conf[0])
+                    xyxy = [float(value) for value in box.xyxy[0].tolist()]
+                    w = max(0.0, xyxy[2] - xyxy[0])
+                    h = max(0.0, xyxy[3] - xyxy[1])
+                    pixel_area = float(w * h * 0.785)
+                    detection: Detection = {
+                        "food_label": label,
+                        "confidence": confidence,
+                        "pixel_area": pixel_area,
+                        "bbox": xyxy,
+                    }
+                    detections.append(detection)
         if detections:
             from .indian_food_classifier import refine_detection
             detections = [refine_detection(image, detection) for detection in detections]
@@ -338,15 +354,16 @@ def get_detector() -> Detector:
 
 
 def check_checkpoint(checkpoint_path: str) -> tuple[bool, str, list[str]]:
-    """Checks if a checkpoint file exists, is a segmentation model, and is trained on food classes."""
+    """Checks if a checkpoint file exists, is a detection or segmentation model, and is trained on food classes."""
     if not checkpoint_path or not os.path.isfile(checkpoint_path):
         return False, "Checkpoint file does not exist", []
     try:
         from ultralytics import YOLO
         model = YOLO(checkpoint_path)
         classes = list(getattr(model, "names", {}).values())
-        if getattr(model, "task", None) != "segment":
-            return False, "Checkpoint is not a YOLO segmentation model (task != 'segment')", classes
+        task = getattr(model, "task", None)
+        if task not in ("segment", "detect"):
+            return False, f"Checkpoint is not a YOLO segmentation or detection model (task: {task})", classes
         checkpoint_classes = set(classes)
         if checkpoint_classes and checkpoint_classes.issubset(_COCO_GENERIC_CLASSES):
             return False, "Checkpoint is a generic COCO-80 model, not trained on Indian food", classes

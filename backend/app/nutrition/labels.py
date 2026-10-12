@@ -56,6 +56,23 @@ ALIASES: dict[str, str] = {
     "tandoori_roti": "chapati",
     "butter_roti": "chapati",
     "aloo_paratha": "paratha",
+    "roti_phulka": "chapati",
+    "bhakri": "chapati",
+    "thepla": "paratha",
+    "puri": "paratha",
+    "aloo_gobhi": "aloo_gobi",
+    "aloo_sabji": "mixed_vegetable_sabzi",
+    "bhindi": "bhindi_sabzi",
+    "daal": "dal",
+    "varan": "dal",
+    "sambhar": "sambar",
+    "eggs": "boiled_egg",
+    "omelette": "boiled_egg",
+    "veg_pulao": "vegetable_pulao",
+    "saag": "palak_paneer",
+    "khandvi": "besan_cheela",
+    "yellow_dhokla": "besan_cheela",
+    "bhakarwadi": "samosa",
 }
 
 

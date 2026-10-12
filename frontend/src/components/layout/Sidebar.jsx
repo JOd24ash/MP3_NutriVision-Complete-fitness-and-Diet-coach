@@ -6,16 +6,13 @@ import {
   LayoutDashboard,
   History,
   Activity,
-  MessageSquareText,
-  User,
   Sparkles,
   LogOut,
   ChevronLeft,
   ChevronRight,
   Apple,
-  Settings,
-  TrendingUp,
-  Salad
+  Leaf,
+  Settings
 } from 'lucide-react';
 
 export const Sidebar = () => {
@@ -44,7 +41,7 @@ export const Sidebar = () => {
       {/* Brand Header */}
       <div className="sidebar-brand" onClick={() => setActiveTab('dashboard')}>
         <div className="sidebar-brand-icon">
-          <Salad size={22} />
+          <Leaf size={25} fill="currentColor" />
         </div>
         {!collapsed && (
           <div className="sidebar-brand-text">
@@ -105,7 +102,13 @@ export const Sidebar = () => {
           title={collapsed ? 'AI Coach' : ''}
         >
           <Sparkles size={18} />
-          {!collapsed && <span>Ask AI Coach</span>}
+          {!collapsed && (
+            <span className="sidebar-ai-copy">
+              <strong>Ask AI Coach</strong>
+              <small>Get personalized advice</small>
+            </span>
+          )}
+          {!collapsed && <ChevronRight className="sidebar-ai-arrow" size={18} />}
         </button>
       </div>
 

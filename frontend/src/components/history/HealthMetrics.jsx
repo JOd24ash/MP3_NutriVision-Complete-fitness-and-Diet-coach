@@ -130,9 +130,9 @@ export const HealthMetrics = () => {
   const areaD = `${pathD} L ${points[points.length - 1].x} ${chartHeight - paddingY} L ${points[0].x} ${chartHeight - paddingY} Z`;
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div className="health-metrics-page" style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* ── 1. Top Header Banner: Your Health Snapshot ───────── */}
-      <div style={{
+      <div className="health-metrics-header" style={{
         background: '#fff',
         borderRadius: 16,
         border: '1px solid #e5e7eb',
@@ -220,7 +220,7 @@ export const HealthMetrics = () => {
       </div>
 
       {/* ── 2. Top 4 Metric Cards Row ────────────────────────── */}
-      <div style={{
+      <div className="health-metrics-cards" style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(4, 1fr)',
         gap: 16
@@ -415,7 +415,7 @@ export const HealthMetrics = () => {
       </div>
 
       {/* ── 3. Middle Section: Weight Trend & Recent Measurements ─ */}
-      <div style={{ display: 'flex', gap: 20, alignItems: 'stretch' }}>
+      <div className="health-metrics-row" style={{ display: 'flex', gap: 20, alignItems: 'stretch' }}>
         {/* Left: Weight Trend Card */}
         <div style={{
           flex: 1,
@@ -656,7 +656,7 @@ export const HealthMetrics = () => {
       </div>
 
       {/* ── 4. Bottom Row: Health Insights & Quick Actions ───── */}
-      <div style={{ display: 'flex', gap: 20, alignItems: 'stretch' }}>
+      <div className="health-metrics-row" style={{ display: 'flex', gap: 20, alignItems: 'stretch' }}>
         {/* Left: Health Insights Card */}
         <div style={{
           flex: 1,

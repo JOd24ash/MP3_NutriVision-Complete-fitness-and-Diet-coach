@@ -430,9 +430,9 @@ export const ManualFoodEntry = () => {
   };
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div className="manual-food-page" style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* ── Top Header Banner ─────────────────────────────────── */}
-      <div style={{
+      <div className="manual-food-header" style={{
         background: '#fff',
         borderRadius: 16,
         border: '1px solid #e5e7eb',
@@ -464,7 +464,7 @@ export const ManualFoodEntry = () => {
         </div>
 
         {/* Search Bar */}
-        <div style={{ display: 'flex', gap: 12, marginTop: 20, alignItems: 'center' }}>
+        <div className="manual-food-search" style={{ display: 'flex', gap: 12, marginTop: 20, alignItems: 'center' }}>
           <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
             <Search size={18} color="#9ca3af" style={{ position: 'absolute', left: 14, pointerEvents: 'none' }} />
             <input
@@ -513,7 +513,7 @@ export const ManualFoodEntry = () => {
       </div>
 
       {/* ── Main Two-Column Layout ───────────────────────────── */}
-      <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+      <div className="manual-food-content" style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
         {/* Left Column: Food Grid Card */}
         <div style={{
           flex: 1,
@@ -748,7 +748,7 @@ export const ManualFoodEntry = () => {
         </div>
 
         {/* Right Column: Sidebar */}
-        <div style={{ width: 320, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div className="manual-food-sidebar" style={{ width: 320, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
           {/* 0. Live Current Plate Card */}
           <div style={{
             background: '#ffffff',
