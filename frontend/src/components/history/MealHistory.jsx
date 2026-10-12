@@ -112,9 +112,9 @@ export const MealHistory = () => {
   const selectedMeal = mealsData.find(m => m.id === selectedMealId) || mealsData[1];
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
+    <div className="meal-history-page" style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
       {/* ── Top Bar: Filter Tabs, Date & Search Bar ────────────── */}
-      <div style={{
+      <div className="meal-history-filters" style={{
         background: '#fff',
         borderRadius: 16,
         border: '1px solid #e5e7eb',
@@ -127,7 +127,7 @@ export const MealHistory = () => {
         boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
       }}>
         {/* Left: Category Filter Pills */}
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <div className="meal-history-categories" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {['All Meals', 'Breakfast', 'Lunch', 'Dinner', 'Snacks', 'Beverages'].map(cat => {
             const isActive = activeCategory === cat;
             return (
@@ -153,7 +153,7 @@ export const MealHistory = () => {
         </div>
 
         {/* Right: Date Picker & Search Input */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div className="meal-history-controls" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {/* Date Selector */}
           <div
             onClick={() => showToast('Selected 10 Oct 2026', 'info')}
@@ -200,9 +200,9 @@ export const MealHistory = () => {
       </div>
 
       {/* ── Main Two-Column Layout ───────────────────────────── */}
-      <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+      <div className="meal-history-content" style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
         {/* Left Column: Today's Meals Timeline */}
-        <div style={{
+        <div className="meal-history-list" style={{
           flex: '1 1 55%',
           minWidth: 0,
           background: '#fff',
@@ -214,7 +214,7 @@ export const MealHistory = () => {
           flexDirection: 'column'
         }}>
           {/* Card Header: Today date + Total Calories */}
-          <div style={{
+          <div className="meal-history-summary" style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -244,7 +244,7 @@ export const MealHistory = () => {
             {filteredMeals.map(meal => {
               const isSelected = selectedMeal.id === meal.id;
               return (
-                <div
+                <div className="meal-history-meal"
                   key={meal.id}
                   onClick={() => setSelectedMealId(meal.id)}
                   style={{
@@ -267,7 +267,7 @@ export const MealHistory = () => {
                   }}
                 >
                   {/* Left: Photo + Info */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0, flex: 1 }}>
+                  <div className="meal-history-meal-main" style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0, flex: 1 }}>
                     <div style={{
                       width: 62,
                       height: 62,
@@ -334,7 +334,7 @@ export const MealHistory = () => {
                   </div>
 
                   {/* Right: Calories, Macros, Chevron */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, textAlign: 'right' }}>
+                  <div className="meal-history-meal-macros" style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, textAlign: 'right' }}>
                     <div>
                       <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#111827' }}>
                         {meal.kcal} kcal
@@ -371,7 +371,7 @@ export const MealHistory = () => {
         </div>
 
         {/* Right Column: Meal Detail Inspection Panel */}
-        <div style={{
+        <div className="meal-history-detail" style={{
           flex: '1 1 45%',
           minWidth: 0,
           background: '#fff',
@@ -383,7 +383,7 @@ export const MealHistory = () => {
           flexDirection: 'column'
         }}>
           {/* Top Row: Back link, Category Badge, Timestamp */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div className="meal-history-detail-top" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
             <button
               onClick={() => showToast('Returned to timeline', 'info')}
               style={{
@@ -405,7 +405,7 @@ export const MealHistory = () => {
               Back to History
             </button>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div className="meal-history-detail-date" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{
                 padding: '3px 10px',
                 borderRadius: 12,
@@ -423,7 +423,7 @@ export const MealHistory = () => {
           </div>
 
           {/* Meal Headline: Picture + Title + Description */}
-          <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 18 }}>
+          <div className="meal-history-detail-title" style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 18 }}>
             <div style={{
               width: 76,
               height: 76,
@@ -450,7 +450,7 @@ export const MealHistory = () => {
           </div>
 
           {/* 4 Macro Stat Boxes */}
-          <div style={{
+          <div className="meal-history-detail-stats" style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(4, 1fr)',
             gap: 10,
@@ -547,7 +547,7 @@ export const MealHistory = () => {
             </div>
 
             {/* Food items table header */}
-            <div style={{
+            <div className="meal-history-food-header meal-history-food-grid" style={{
               display: 'grid',
               gridTemplateColumns: '2fr 1fr 1fr 1fr',
               padding: '4px 6px 6px',
@@ -567,6 +567,7 @@ export const MealHistory = () => {
               {selectedMeal.foodItems.map((item, idx) => (
                 <div
                   key={idx}
+                  className="meal-history-food-grid"
                   style={{
                     display: 'grid',
                     gridTemplateColumns: '2fr 1fr 1fr 1fr',

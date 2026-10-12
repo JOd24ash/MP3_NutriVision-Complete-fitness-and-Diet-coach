@@ -189,15 +189,15 @@ export const TodaySummary = () => {
               <User size={22} />
             </div>
             <div>
-              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#065f46' }}>
+              <h2 className="dash-greeting-title">
                 {greeting}, {firstName}!
               </h2>
-              <p style={{ margin: '4px 0 0', fontSize: '0.88rem', color: '#047857', fontWeight: 500 }}>
+              <p className="dash-greeting-subtitle">
                 Stay consistent, your health goals are within reach.
               </p>
             </div>
           </div>
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981' }} />
+          <div className="dash-banner-arrow"><ChevronRight size={19} /></div>
         </div>
 
         {/* Daily Goal Card */}
@@ -235,16 +235,7 @@ export const TodaySummary = () => {
       <div>
         <div className="dash-section-header">
           <h3 className="dash-section-title">
-            <span style={{ 
-              width: 26, 
-              height: 26, 
-              borderRadius: 8, 
-              background: '#ecfdf5', 
-              color: '#10b981', 
-              display: 'inline-flex', 
-              alignItems: 'center', 
-              justifyContent: 'center' 
-            }}>
+            <span className="dash-section-icon">
               <Sprout size={16} />
             </span>
             <span>Today's Nutrition</span>

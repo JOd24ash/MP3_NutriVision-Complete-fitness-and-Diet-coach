@@ -9,6 +9,7 @@ from app.vision.detector import VisionSettings, YOLO26SegDetector, vision_settin
 
 
 def test_vision_settings_reads_inference_controls(monkeypatch):
+    monkeypatch.delenv("YOLO_CHECKPOINT_PATH", raising=False)
     monkeypatch.setenv("YOLO_CONFIDENCE", "0.4")
     monkeypatch.setenv("YOLO_IMAGE_SIZE", "512")
     monkeypatch.setenv("YOLO_DEVICE", "cpu")
