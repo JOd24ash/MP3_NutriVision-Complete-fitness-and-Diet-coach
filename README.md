@@ -2,6 +2,10 @@
 
 AI-driven nutrition assistant for multi-item Indian meals — with food detection, calorie tracking, voice logging, RAG-powered diet coaching, and health guardrails.
 
+## Personal nutrition guidance
+
+The profile-based nutrition dashboard uses Mifflin-St Jeor for adults and WHO/FAO/UNU Schofield resting-energy estimates for ages 3–17, then applies activity factors and age-appropriate AMDR macro ranges. It does not prescribe calorie deficits or surpluses for minors. Food values are sourced from the ICMR-NIN Indian Food Composition Tables 2017 (see `backend/data/foods.json`); mixed dishes remain labelled estimates. NutriVision provides general guidance, not professional medical advice.
+
 ---
 
 ## 🏗️ Architecture

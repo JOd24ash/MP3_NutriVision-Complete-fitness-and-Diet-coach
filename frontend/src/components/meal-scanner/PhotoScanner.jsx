@@ -199,7 +199,9 @@ export const PhotoScanner = () => {
       if (meal.items && meal.items.length > 0) {
         setShowWeightEntry(true);
         showToast?.(
-          `Found ${items.length} item${items.length !== 1 ? 's' : ''}! Please enter the weight (in grams) for each item.`,
+          meal.needs_manual_review
+            ? `Found ${items.length} item${items.length !== 1 ? 's' : ''}, but identification or portion estimates need review. Please confirm each food and weight.`
+            : `Found ${items.length} item${items.length !== 1 ? 's' : ''}! Please enter the weight (in grams) for each item.`,
           'info'
         );
       } else {

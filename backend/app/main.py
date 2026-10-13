@@ -322,7 +322,13 @@ async def log_meal_photo(
     rows = evaluate_meal(nutrition_results, profile_to_schema(profile))
 
     meal_log = persist_meal(db, user_id, MealSource.photo, rows)
-    return meal_log_to_response(meal_log)
+    response = meal_log_to_response(meal_log)
+    response.needs_manual_review = (
+        reference_object_px is None or reference_object_real_cm is None
+        or any((item.confidence or 0) < 0.8 for item in meal_log.items)
+        or response.needs_manual_review
+    )
+    return response
 
 
 @app.get(f"{API_PREFIX}/vision/status")
@@ -552,11 +558,15 @@ def put_goals(user_id: str, payload: GoalIn, db: Session = Depends(get_db), curr
     require_self(user_id, current_user)
     from .db.models import FitnessGoal
     from .fitness.calculator import ACTIVITY, targets
-    if payload.sex not in {"male", "female"} or payload.activity_level not in ACTIVITY or payload.goal not in {"lose", "maintain", "gain"} or payload.diet_preference not in {"veg", "non_veg", "eggetarian", "vegan"}: raise HTTPException(422, "Invalid goal profile")
+    if payload.sex not in {"male", "female"} or payload.activity_level not in ACTIVITY or payload.goal not in {"lose", "maintain", "gain", "fitness", "general_fitness"} or payload.diet_preference not in {"veg", "non_veg", "eggetarian", "vegan"}: raise HTTPException(422, "Invalid goal profile")
+    try:
+        calculated = targets(**payload.model_dump(exclude={"diet_preference"}))
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
     goal = db.get(FitnessGoal, user_id) or FitnessGoal(user_id=user_id)
     for key, value in payload.model_dump().items(): setattr(goal, key, value)
     db.add(goal); db.commit()
-    return {**payload.model_dump(), **targets(**payload.model_dump(exclude={"diet_preference"}))}
+    return {**payload.model_dump(), **calculated}
 
 @app.get(f"{API_PREFIX}/users/{{user_id}}/goals")
 def get_goals(user_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -613,7 +623,8 @@ def daily_summary(user_id: str, date: date, db: Session = Depends(get_db), curre
     else:
         burned = sum(calories_burned(item.activity_type, item.intensity, item.duration_minutes, 70.0) for item in activities)
         target = {"calories": 2000, "protein_g": 60.0, "carbs_g": 250.0, "fat_g": 55.0}
-    return {"date": str(date), "target": target, "consumed": {key: round(value, 1) for key, value in consumed.items()}, "burned": burned, "remaining": {"calories": round(target["calories"] + burned - consumed["calories"]), "protein_g": round(target["protein_g"] - consumed["protein_g"], 1), "carbs_g": round(target["carbs_g"] - consumed["carbs_g"], 1), "fat_g": round(target["fat_g"] - consumed["fat_g"], 1)}}
+    from .nutrition.food_data import FOOD_DATA_SOURCE
+    return {"date": str(date), "target": target, "food_data_source": FOOD_DATA_SOURCE, "consumed": {key: round(value, 1) for key, value in consumed.items()}, "burned": burned, "remaining": {"calories": round(target["calories"] + burned - consumed["calories"]), "protein_g": round(target["protein_g"] - consumed["protein_g"], 1), "carbs_g": round(target["carbs_g"] - consumed["carbs_g"], 1), "fat_g": round(target["fat_g"] - consumed["fat_g"], 1)}}
 
 @app.get(f"{API_PREFIX}/users/{{user_id}}/meal-suggestions")
 def meal_suggestions(user_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -630,6 +641,7 @@ def meal_suggestions(user_id: str, db: Session = Depends(get_db), current_user: 
         if diet_pref == "veg" and food["diet"] not in {"veg", "vegan"}: continue
         if diet_pref == "eggetarian" and food["diet"] not in {"veg", "vegan", "eggetarian"}: continue
         if profile and set(food["allergens"]).intersection(profile.allergies or []): continue
+        if profile and set(food.get("cautions", {})).intersection(profile.conditions or []): continue
         options.append({"food_label": food["label"], "display_name": food["display_name"], "serving_g": food["serving_g"], "reason": "Matches your diet preference and has no declared allergen conflict."})
     return options[:3]
 

@@ -3,7 +3,9 @@ import json
 from pathlib import Path
 
 _path = Path(__file__).parents[2] / "data" / "foods.json"
-FOODS = {food["label"]: food for food in json.loads(_path.read_text(encoding="utf-8"))["foods"]}
+_catalogue = json.loads(_path.read_text(encoding="utf-8"))
+FOOD_DATA_SOURCE = _catalogue["source"]
+FOODS = {food["label"]: food for food in _catalogue["foods"]}
 
 def search_foods(query: str):
     term = query.lower().replace(" ", "_").strip()

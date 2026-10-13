@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
+import { api } from '../../api/client';
 import {
   User, Camera, Target, Leaf, ShieldCheck,
   Scale, HeartPulse, Info, X, Save, Drumstick,
@@ -16,7 +17,7 @@ export const ProfileSettingsModal = () => {
   const [weight, setWeight] = useState(user?.weight || '');
   const [activityLevel, setActivityLevel] = useState(user?.activity_level || '');
   const [sex, setSex] = useState(user?.sex || '');
-  const [healthGoal, setHealthGoal] = useState(user?.health_goal || 'lose');
+  const [healthGoal, setHealthGoal] = useState(user?.health_goal || 'fitness');
   const [dietPreference, setDietPreference] = useState(user?.diet_preference || 'vegetarian');
   const [medicalCondition, setMedicalCondition] = useState(user?.medical_condition || '');
   const [allergy, setAllergy] = useState(user?.allergy || '');
@@ -36,6 +37,25 @@ export const ProfileSettingsModal = () => {
     }
   }, [user]);
 
+  // Profile basics and goals are persisted in separate existing API resources.
+  // Reload both when opening so a new login does not fall back to local state.
+  useEffect(() => {
+    if (!isProfileModalOpen || !user?.id) return;
+    Promise.allSettled([api.profile.get(user.id), api.fitness.goals(user.id)]).then(([profile, goals]) => {
+      if (profile.status === 'fulfilled') {
+        setAllergy(profile.value.allergies?.[0] || '');
+        setMedicalCondition(profile.value.conditions?.[0] || '');
+      }
+      if (goals.status === 'fulfilled') {
+        const value = goals.value;
+        setAge(value.age); setHeight(value.height_cm); setWeight(value.weight_kg);
+        setSex(value.sex); setActivityLevel(value.activity_level);
+        setHealthGoal(value.goal === 'general_fitness' ? 'fitness' : value.goal);
+        setDietPreference({ veg: 'vegetarian', non_veg: 'non_vegetarian', vegan: 'vegan' }[value.diet_preference] || 'vegetarian');
+      }
+    });
+  }, [isProfileModalOpen, user?.id]);
+
   if (!isProfileModalOpen) return null;
 
   // Calculate dynamic profile completion percentage
@@ -43,7 +63,7 @@ export const ProfileSettingsModal = () => {
   const filledCount = fields.filter(f => f && String(f).trim() !== '').length;
   const completionPercentage = Math.round((filledCount / fields.length) * 100);
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     if (e) e.preventDefault();
 
     const profileData = {
@@ -59,15 +79,25 @@ export const ProfileSettingsModal = () => {
       allergy: allergy
     };
 
-    if (updateUserProfile) {
-      updateUserProfile(profileData);
+    if (!age || !height || !weight || !activityLevel || !sex) {
+      showToast('Age, height, weight, activity level, and sex are needed for an evidence-based estimate.', 'danger');
+      return;
+    }
+    const goalMap = { fitness: 'fitness', lose: 'fitness', maintain: 'maintain', gain: 'gain' };
+    const dietMap = { vegetarian: 'veg', non_vegetarian: 'non_veg', vegan: 'vegan', other: 'veg' };
+    try {
+      await api.fitness.updateGoals(user.id, { age: Number(age), height_cm: Number(height), weight_kg: Number(weight), sex, activity_level: activityLevel, goal: goalMap[healthGoal] || 'fitness', diet_preference: dietMap[dietPreference] || 'veg' });
+      if (updateUserProfile) await updateUserProfile({ ...profileData, allergies: allergy && allergy !== 'none' ? [allergy] : [], conditions: medicalCondition && medicalCondition !== 'none' ? [medicalCondition] : [] });
+    } catch (error) {
+      showToast(error.message, 'danger');
+      return;
     }
 
     if (user?.id) {
       localStorage.setItem('nutrivision_profile_saved_' + user.id, 'true');
     }
 
-    showToast('Profile saved successfully! Your plan is customized.', 'success');
+    showToast('Profile saved successfully! Your nutrition estimate is ready.', 'success');
     setIsProfileModalOpen(false);
   };
 
@@ -438,13 +468,13 @@ export const ProfileSettingsModal = () => {
                   <option value="sedentary">Sedentary (little or no exercise)</option>
                   <option value="light">Lightly active (exercise 1-3 days/week)</option>
                   <option value="moderate">Moderately active (exercise 3-5 days/week)</option>
-                  <option value="very_active">Very active (hard exercise 6-7 days/week)</option>
+                  <option value="active">Very active (hard exercise 6-7 days/week)</option>
                 </select>
               </div>
 
               <div>
                 <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#374151', marginBottom: 6 }}>
-                  Sex (optional)
+                  Sex (needed for energy estimate) *
                 </label>
                 <select
                   value={sex}
@@ -464,7 +494,6 @@ export const ProfileSettingsModal = () => {
                   <option value="">Select your sex</option>
                   <option value="male">Male</option>
                   <option value="female">Female</option>
-                  <option value="other">Other / Prefer not to say</option>
                 </select>
               </div>
             </div>
@@ -506,7 +535,6 @@ export const ProfileSettingsModal = () => {
               gap: 12
             }}>
               {[
-                { id: 'lose', title: 'Lose weight', desc: 'Feel lighter & healthier', icon: Scale, color: '#059669', bg: '#ecfdf5' },
                 { id: 'maintain', title: 'Maintain weight', desc: 'Stay healthy & fit', icon: Activity, color: '#2563eb', bg: '#eff6ff' },
                 { id: 'gain', title: 'Gain weight', desc: 'Build muscle & strength', icon: Activity, color: '#2563eb', bg: '#eff6ff' },
                 { id: 'fitness', title: 'Improve fitness', desc: 'Increase energy & stamina', icon: HeartPulse, color: '#059669', bg: '#ecfdf5' }

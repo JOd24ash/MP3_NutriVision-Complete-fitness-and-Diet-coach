@@ -63,6 +63,7 @@ const DonutGauge = ({ percent, color, track = '#f3f4f6', size = 52, stroke = 5 }
 export const TodaySummary = () => {
   const { user, setActiveTab, setIsProfileModalOpen, showToast } = useApp();
   const [summary, setSummary] = useState(null);
+  const [suggestions, setSuggestions] = useState([]);
   const [metricTab, setMetricTab] = useState('calories');
   const [waterMl, setWaterMl] = useState(1200);
 
@@ -72,6 +73,7 @@ export const TodaySummary = () => {
       api.fitness.summary(user.id)
         .then(data => { if (data) setSummary(data); })
         .catch(() => {});
+      api.fitness.suggestions(user.id).then(setSuggestions).catch(() => setSuggestions([]));
     }
   }, [user?.id]);
 
@@ -81,25 +83,25 @@ export const TodaySummary = () => {
   const firstName = user?.name ? user.name.split(' ')[0] : 'Yash';
 
   // Macro stats (prefer user/api data if present, fall back to default goals)
-  const caloriesConsumed = summary?.consumed?.calories ?? 820;
-  const caloriesTarget = summary?.target?.calories ?? 2500;
+  const caloriesConsumed = summary?.consumed?.calories ?? 0;
+  const caloriesTarget = summary?.target?.calories ?? 0;
   const caloriesRemaining = Math.max(0, caloriesTarget - caloriesConsumed);
-  const caloriesPercent = Math.round((caloriesConsumed / caloriesTarget) * 100);
+  const caloriesPercent = caloriesTarget ? Math.round((caloriesConsumed / caloriesTarget) * 100) : 0;
 
-  const proteinConsumed = summary?.consumed?.protein_g ?? 42;
-  const proteinTarget = summary?.target?.protein_g ?? 150;
+  const proteinConsumed = summary?.consumed?.protein_g ?? 0;
+  const proteinTarget = summary?.target?.protein_g ?? 0;
   const proteinRemaining = Math.max(0, proteinTarget - proteinConsumed);
-  const proteinPercent = Math.round((proteinConsumed / proteinTarget) * 100);
+  const proteinPercent = proteinTarget ? Math.round((proteinConsumed / proteinTarget) * 100) : 0;
 
-  const carbsConsumed = summary?.consumed?.carbs_g ?? 110;
-  const carbsTarget = summary?.target?.carbs_g ?? 350;
+  const carbsConsumed = summary?.consumed?.carbs_g ?? 0;
+  const carbsTarget = summary?.target?.carbs_g ?? 0;
   const carbsRemaining = Math.max(0, carbsTarget - carbsConsumed);
-  const carbsPercent = Math.round((carbsConsumed / carbsTarget) * 100);
+  const carbsPercent = carbsTarget ? Math.round((carbsConsumed / carbsTarget) * 100) : 0;
 
-  const fatConsumed = summary?.consumed?.fat_g ?? 28;
-  const fatTarget = summary?.target?.fat_g ?? 70;
+  const fatConsumed = summary?.consumed?.fat_g ?? 0;
+  const fatTarget = summary?.target?.fat_g ?? 0;
   const fatRemaining = Math.max(0, fatTarget - fatConsumed);
-  const fatPercent = Math.round((fatConsumed / fatTarget) * 100);
+  const fatPercent = fatTarget ? Math.round((fatConsumed / fatTarget) * 100) : 0;
 
   // 7-day trend dataset
   const weeklyTrends = {
@@ -329,6 +331,28 @@ export const TodaySummary = () => {
           </div>
         </div>
       </div>
+
+      {summary?.target && (
+        <section className="dash-panel" style={{ padding: '18px 20px' }} aria-label="How your nutrition targets were calculated">
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'baseline' }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '1rem' }}>Your nutrition guide</h3>
+              <p style={{ margin: '6px 0 0', fontSize: '.78rem', color: '#64748b', maxWidth: 760 }}>{summary.target.explanation}</p>
+            </div>
+            <span style={{ fontSize: '.74rem', color: '#64748b' }}>{summary.target.method}</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(150px, 1fr))', gap: 12, marginTop: 16 }}>
+            <div><strong>Carbohydrates — {summary.target.macro_percent_energy?.carbs}% energy</strong><div style={{ fontSize: '.76rem', color: '#64748b', marginTop: 4 }}>Your body's main fuel for daily activity.</div></div>
+            <div><strong>Protein — {summary.target.macro_percent_energy?.protein}% energy</strong><div style={{ fontSize: '.76rem', color: '#64748b', marginTop: 4 }}>Supports growth, repair, and muscle maintenance.</div></div>
+            <div><strong>Fats — {summary.target.macro_percent_energy?.fat}% energy</strong><div style={{ fontSize: '.76rem', color: '#64748b', marginTop: 4 }}>Helps absorb vitamins and supports cells and hormones.</div></div>
+          </div>
+          {summary.target.caution && <p style={{ margin: '14px 0 0', color: '#9a3412', fontSize: '.78rem' }}>{summary.target.caution}</p>}
+          <p style={{ margin: '12px 0 0', color: '#64748b', fontSize: '.75rem' }}>{summary.target.disclaimer}</p>
+          {suggestions.length > 0 && <div style={{ marginTop: 12, fontSize: '.78rem' }}><strong>Suitable foods from the verified catalogue: </strong>{suggestions.map(item => item.display_name).join(', ')}.</div>}
+          <div style={{ marginTop: 8, fontSize: '.73rem' }}>Sources: {summary.target.sources?.map(source => <a key={source.url} href={source.url} target="_blank" rel="noreferrer" style={{ color: '#2563eb', marginRight: 8 }}>{source.title}</a>)}</div>
+          <div style={{ marginTop: 4, fontSize: '.73rem', color: '#64748b' }}>Food data: {summary.food_data_source}</div>
+        </section>
+      )}
 
       {/* ── ROW 3: Middle Grid (Meals, Weekly Trend, Quick Actions) ── */}
       <div className="dash-middle-grid">

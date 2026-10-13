@@ -170,6 +170,7 @@ export const api = {
   },
 
   fitness: {
+    async updateGoals(userId, payload) { const res = await fetchWithAuth(`${BASE_URL}/users/${userId}/goals`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); if (!res.ok) { const err = await res.json().catch(() => ({ detail: 'Could not save nutrition profile' })); throw new Error(err.detail || 'Could not save nutrition profile'); } return await res.json(); },
     async goals(userId) { const res = await fetchWithAuth(`${BASE_URL}/users/${userId}/goals`); if (!res.ok) throw new Error('Set your goals to view progress'); return await res.json(); },
     async summary(userId) { const date = new Date().toISOString().slice(0, 10); const res = await fetchWithAuth(`${BASE_URL}/users/${userId}/daily-summary?date=${date}`); if (!res.ok) throw new Error('Set your goals to view progress'); return await res.json(); },
     async suggestions(userId) { const res = await fetchWithAuth(`${BASE_URL}/users/${userId}/meal-suggestions`); if (!res.ok) throw new Error('Suggestions unavailable'); return await res.json(); },
