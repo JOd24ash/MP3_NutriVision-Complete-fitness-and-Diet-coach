@@ -61,13 +61,14 @@ const DonutGauge = ({ percent, color, track = '#f3f4f6', size = 52, stroke = 5 }
 };
 
 export const TodaySummary = () => {
-  const { user, setActiveTab, setIsProfileModalOpen, showToast } = useApp();
+  const { user, setActiveTab, setIsProfileModalOpen, showToast, profileRefreshTrigger } = useApp();
   const [summary, setSummary] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
   const [metricTab, setMetricTab] = useState('calories');
   const [waterMl, setWaterMl] = useState(1200);
 
-  // Fetch fitness summary if available, otherwise use defaults
+  // Re-fetch after a profile save: targets must never remain generic for the
+  // currently signed-in user.
   useEffect(() => {
     if (user?.id) {
       api.fitness.summary(user.id)
@@ -75,7 +76,7 @@ export const TodaySummary = () => {
         .catch(() => {});
       api.fitness.suggestions(user.id).then(setSuggestions).catch(() => setSuggestions([]));
     }
-  }, [user?.id]);
+  }, [user?.id, user?.age, user?.height, user?.weight, user?.activity_level, user?.health_goal, user?.diet_preference, profileRefreshTrigger]);
 
   // Dynamic greeting based on time of day
   const hour = new Date().getHours();
@@ -238,7 +239,24 @@ export const TodaySummary = () => {
             </span>
             <span>Today's Nutrition</span>
           </h3>
-          <span className="dash-section-sub">Targets from your profile</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {summary?.target?.age_group_label && (
+              <span style={{
+                fontSize: '0.74rem',
+                fontWeight: 700,
+                background: summary.target.is_minor ? '#ecfdf5' : '#eff6ff',
+                color: summary.target.is_minor ? '#065f46' : '#1e40af',
+                padding: '2px 8px',
+                borderRadius: 6,
+                border: summary.target.is_minor ? '1px solid #a7f3d0' : '1px solid #bfdbfe'
+              }}>
+                {summary.target.age_group_label}
+              </span>
+            )}
+            <span className="dash-section-sub">
+              {summary?.target?.age_group_label ? `Targets tailored for ${summary.target.age_group_label}` : 'Targets from your profile'}
+            </span>
+          </div>
         </div>
 
         <div className="dash-macro-grid">
@@ -336,7 +354,22 @@ export const TodaySummary = () => {
         <section className="dash-panel" style={{ padding: '18px 20px' }} aria-label="How your nutrition targets were calculated">
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'baseline' }}>
             <div>
-              <h3 style={{ margin: 0, fontSize: '1rem' }}>Your nutrition guide</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <h3 style={{ margin: 0, fontSize: '1rem' }}>Your nutrition guide</h3>
+                {summary.target.age_group_label && (
+                  <span style={{
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: 6,
+                    background: summary.target.is_minor ? '#ecfdf5' : '#eff6ff',
+                    color: summary.target.is_minor ? '#065f46' : '#1e40af',
+                    border: summary.target.is_minor ? '1px solid #a7f3d0' : '1px solid #bfdbfe'
+                  }}>
+                    {summary.target.age_group_label}
+                  </span>
+                )}
+              </div>
               <p style={{ margin: '6px 0 0', fontSize: '.78rem', color: '#64748b', maxWidth: 760 }}>{summary.target.explanation}</p>
             </div>
             <span style={{ fontSize: '.74rem', color: '#64748b' }}>{summary.target.method}</span>

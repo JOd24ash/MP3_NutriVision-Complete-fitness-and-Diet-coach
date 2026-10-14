@@ -34,6 +34,23 @@ def targets(age, sex, height_cm, weight_kg, activity_level, goal):
         raise ValueError("Unsupported fitness goal")
 
     is_minor = age < 18
+    if age < 10:
+        age_group = "child"
+        age_group_label = f"Child ({int(age) if age.is_integer() else age} yrs)"
+        carb_pct, protein_pct, fat_pct = 55, 15, 30
+    elif age < 18:
+        age_group = "adolescent"
+        age_group_label = f"Adolescent ({int(age) if age.is_integer() else age} yrs)"
+        carb_pct, protein_pct, fat_pct = 55, 15, 30
+    elif age < 60:
+        age_group = "adult"
+        age_group_label = f"Adult ({int(age) if age.is_integer() else age} yrs)"
+        carb_pct, protein_pct, fat_pct = 50, 20, 30
+    else:
+        age_group = "senior"
+        age_group_label = f"Senior ({int(age) if age.is_integer() else age} yrs)"
+        carb_pct, protein_pct, fat_pct = 50, 22, 28
+
     method = "WHO/FAO/UNU Schofield resting-energy estimate" if is_minor else "Mifflin-St Jeor resting-energy estimate"
     bmr = _schofield_bmr(age, sex, weight_kg) if is_minor else 10 * weight_kg + 6.25 * height_cm - 5 * age + (5 if sex == "male" else -161)
     maintenance = bmr * ACTIVITY[activity_level]
@@ -47,7 +64,6 @@ def targets(age, sex, height_cm, weight_kg, activity_level, goal):
         adjustment, note = -300, "Weight-change targets are general estimates; seek professional advice for medical conditions, pregnancy, or eating-disorder concerns."
 
     calories = round(max(maintenance + adjustment, 1))
-    carb_pct, protein_pct, fat_pct = (55, 15, 30) if is_minor else (50, 20, 30)
     return {
         "bmr": round(bmr), "tdee": round(maintenance), "calories": calories,
         "carbs_g": round(calories * carb_pct / 100 / 4),
@@ -55,7 +71,9 @@ def targets(age, sex, height_cm, weight_kg, activity_level, goal):
         "fat_g": round(calories * fat_pct / 100 / 9),
         "macro_percent_energy": {"carbs": carb_pct, "protein": protein_pct, "fat": fat_pct},
         "method": method,
-        "explanation": f"{method} × {ACTIVITY[activity_level]} activity factor" + (f" {adjustment:+d} kcal/day for the selected adult goal." if adjustment else ".") + " Macro grams use age-appropriate AMDR midpoint percentages and 4 kcal/g for carbohydrate and protein, 9 kcal/g for fat.",
+        "age_group": age_group,
+        "age_group_label": age_group_label,
+        "explanation": f"{method} × {ACTIVITY[activity_level]} activity factor" + (f" {adjustment:+d} kcal/day for the selected adult goal." if adjustment else ".") + f" Calibrated for {age_group_label} with AMDR macronutrient distribution ({carb_pct}% carbs, {protein_pct}% protein, {fat_pct}% fat).",
         "is_minor": is_minor,
         "disclaimer": "General nutrition guidance only; not medical advice or a diagnosis.",
         "caution": note or None,

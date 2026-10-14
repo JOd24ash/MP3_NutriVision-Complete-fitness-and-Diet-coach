@@ -21,6 +21,23 @@ def test_minor_has_age_appropriate_targets_without_goal_calorie_change():
     assert "healthcare professional" in gain["caution"]
 
 
+def test_young_child_profile_has_different_personalized_macro_targets():
+    plan = targets(5, "male", 168, 60, "sedentary", "fitness")
+    assert plan["calories"] == 2228
+    assert plan["carbs_g"] == 306
+    assert plan["protein_g"] == 84
+    assert plan["fat_g"] == 74
+    assert plan["age_group"] == "child"
+    assert "Child (5 yrs)" in plan["age_group_label"]
+
+
+def test_senior_profile_has_age_tailored_protein_density():
+    plan = targets(65, "male", 165, 65, "sedentary", "fitness")
+    assert plan["age_group"] == "senior"
+    assert plan["macro_percent_energy"] == {"carbs": 50, "protein": 22, "fat": 28}
+    assert plan["protein_g"] == round(plan["calories"] * 0.22 / 4)
+
+
 @pytest.mark.parametrize("profile", [
     (2, "female", 100, 20, "light", "fitness"),
     (30, "other", 170, 70, "light", "fitness"),

@@ -621,8 +621,7 @@ def daily_summary(user_id: str, date: date, db: Session = Depends(get_db), curre
         burned = sum(calories_burned(item.activity_type, item.intensity, item.duration_minutes, goal.weight_kg) for item in activities)
         target = targets(goal.age, goal.sex, goal.height_cm, goal.weight_kg, goal.activity_level, goal.goal)
     else:
-        burned = sum(calories_burned(item.activity_type, item.intensity, item.duration_minutes, 70.0) for item in activities)
-        target = {"calories": 2000, "protein_g": 60.0, "carbs_g": 250.0, "fat_g": 55.0}
+        raise HTTPException(409, "Complete and save your profile before viewing nutrition targets")
     from .nutrition.food_data import FOOD_DATA_SOURCE
     return {"date": str(date), "target": target, "food_data_source": FOOD_DATA_SOURCE, "consumed": {key: round(value, 1) for key, value in consumed.items()}, "burned": burned, "remaining": {"calories": round(target["calories"] + burned - consumed["calories"]), "protein_g": round(target["protein_g"] - consumed["protein_g"], 1), "carbs_g": round(target["carbs_g"] - consumed["carbs_g"], 1), "fat_g": round(target["fat_g"] - consumed["fat_g"], 1)}}
 

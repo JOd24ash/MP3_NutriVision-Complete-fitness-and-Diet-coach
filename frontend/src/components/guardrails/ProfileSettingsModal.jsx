@@ -3,31 +3,34 @@ import { useApp } from '../../context/AppContext';
 import { api } from '../../api/client';
 import {
   User, Camera, Target, Leaf, ShieldCheck,
-  Scale, HeartPulse, Info, X, Save, Drumstick,
-  Sprout, MoreHorizontal, Activity, Check
+  HeartPulse, Info, X, Save, Drumstick,
+  Sprout, MoreHorizontal, Activity, Pencil,
+  Sparkles, Flame, Dumbbell, Wheat, Droplet
 } from 'lucide-react';
+import { calculateTargets } from '../../utils/nutritionCalculator';
 
 export const ProfileSettingsModal = () => {
-  const { user, updateUserProfile, isProfileModalOpen, setIsProfileModalOpen, showToast } = useApp();
+  const { user, updateUserProfile, isProfileModalOpen, setIsProfileModalOpen, showToast, notifyProfileUpdated } = useApp();
 
   // Form states
   const [fullName, setFullName] = useState(user?.name || '');
   const [age, setAge] = useState(user?.age || '');
   const [height, setHeight] = useState(user?.height || '');
   const [weight, setWeight] = useState(user?.weight || '');
-  const [activityLevel, setActivityLevel] = useState(user?.activity_level || '');
-  const [sex, setSex] = useState(user?.sex || '');
+  const [activityLevel, setActivityLevel] = useState(user?.activity_level || 'sedentary');
+  const [sex, setSex] = useState(user?.sex || 'male');
   const [healthGoal, setHealthGoal] = useState(user?.health_goal || 'fitness');
   const [dietPreference, setDietPreference] = useState(user?.diet_preference || 'vegetarian');
   const [medicalCondition, setMedicalCondition] = useState(user?.medical_condition || '');
   const [allergy, setAllergy] = useState(user?.allergy || '');
+  const [isEditing, setIsEditing] = useState(true);
 
   useEffect(() => {
     if (user) {
       if (user.name) setFullName(user.name);
-      if (user.age) setAge(user.age);
-      if (user.height) setHeight(user.height);
-      if (user.weight) setWeight(user.weight);
+      if (user.age !== undefined && user.age !== null) setAge(user.age);
+      if (user.height !== undefined && user.height !== null) setHeight(user.height);
+      if (user.weight !== undefined && user.weight !== null) setWeight(user.weight);
       if (user.activity_level) setActivityLevel(user.activity_level);
       if (user.sex) setSex(user.sex);
       if (user.health_goal) setHealthGoal(user.health_goal);
@@ -48,11 +51,17 @@ export const ProfileSettingsModal = () => {
       }
       if (goals.status === 'fulfilled') {
         const value = goals.value;
-        setAge(value.age); setHeight(value.height_cm); setWeight(value.weight_kg);
-        setSex(value.sex); setActivityLevel(value.activity_level);
-        setHealthGoal(value.goal === 'general_fitness' ? 'fitness' : value.goal);
-        setDietPreference({ veg: 'vegetarian', non_veg: 'non_vegetarian', vegan: 'vegan' }[value.diet_preference] || 'vegetarian');
+        if (value.age !== undefined) setAge(value.age);
+        if (value.height_cm !== undefined) setHeight(value.height_cm);
+        if (value.weight_kg !== undefined) setWeight(value.weight_kg);
+        if (value.sex) setSex(value.sex);
+        if (value.activity_level) setActivityLevel(value.activity_level);
+        if (value.goal) setHealthGoal(value.goal === 'general_fitness' ? 'fitness' : value.goal);
+        if (value.diet_preference) {
+          setDietPreference({ veg: 'vegetarian', non_veg: 'non_vegetarian', vegan: 'vegan' }[value.diet_preference] || 'vegetarian');
+        }
       }
+      setIsEditing(true);
     });
   }, [isProfileModalOpen, user?.id]);
 
@@ -97,7 +106,11 @@ export const ProfileSettingsModal = () => {
       localStorage.setItem('nutrivision_profile_saved_' + user.id, 'true');
     }
 
-    showToast('Profile saved successfully! Your nutrition estimate is ready.', 'success');
+    if (notifyProfileUpdated) {
+      notifyProfileUpdated();
+    }
+
+    showToast('Profile saved successfully! Your personalized nutrition plan is active.', 'success');
     setIsProfileModalOpen(false);
   };
 
@@ -764,6 +777,126 @@ export const ProfileSettingsModal = () => {
               </span>
             </div>
           </div>
+
+          {/* Section 5: Dynamic Live Target Preview */}
+          {liveTargets && (
+            <div style={{
+              background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)',
+              border: '1.5px solid #a7f3d0',
+              borderRadius: 16,
+              padding: '20px 22px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 14,
+              boxShadow: '0 4px 14px rgba(16, 185, 129, 0.08)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 10,
+                    background: '#10b981',
+                    color: '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 2px 6px rgba(16, 185, 129, 0.3)'
+                  }}>
+                    <Sparkles size={18} />
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontWeight: 800, fontSize: '0.98rem', color: '#065f46' }}>
+                        Live Personalized Targets
+                      </span>
+                      <span style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        background: '#d1fae5',
+                        color: '#047857',
+                        padding: '2px 8px',
+                        borderRadius: 6,
+                        border: '1px solid #6ee7b7'
+                      }}>
+                        {liveTargets.badge}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.74rem', color: '#047857', marginTop: 2 }}>
+                      Calculated dynamically for your age ({age || 0}y), body metrics, and goal.
+                    </div>
+                  </div>
+                </div>
+                <span style={{ fontSize: '0.74rem', color: '#059669', fontWeight: 600 }}>
+                  {liveTargets.method}
+                </span>
+              </div>
+
+              {/* 4 Macro preview boxes */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                gap: 10
+              }}>
+                {/* Calories */}
+                <div style={{ background: '#fff', padding: '12px 14px', borderRadius: 12, border: '1px solid #d1fae5', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+                  <div style={{ fontSize: '0.74rem', color: '#ef4444', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
+                    <Flame size={14} /> Calories
+                  </div>
+                  <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#111827', lineHeight: 1.1 }}>
+                    {liveTargets.calories} <span style={{ fontSize: '0.78rem', color: '#6b7280', fontWeight: 500 }}>kcal</span>
+                  </div>
+                  <div style={{ fontSize: '0.68rem', color: '#9ca3af', marginTop: 4 }}>Daily energy budget</div>
+                </div>
+
+                {/* Protein */}
+                <div style={{ background: '#fff', padding: '12px 14px', borderRadius: 12, border: '1px solid #d1fae5', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+                  <div style={{ fontSize: '0.74rem', color: '#10b981', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
+                    <Dumbbell size={14} /> Protein ({liveTargets.macro_percent_energy.protein}%)
+                  </div>
+                  <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#111827', lineHeight: 1.1 }}>
+                    {liveTargets.protein_g} <span style={{ fontSize: '0.78rem', color: '#6b7280', fontWeight: 500 }}>g</span>
+                  </div>
+                  <div style={{ fontSize: '0.68rem', color: '#9ca3af', marginTop: 4 }}>Growth & muscle repair</div>
+                </div>
+
+                {/* Carbs */}
+                <div style={{ background: '#fff', padding: '12px 14px', borderRadius: 12, border: '1px solid #d1fae5', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+                  <div style={{ fontSize: '0.74rem', color: '#d97706', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
+                    <Wheat size={14} /> Carbs ({liveTargets.macro_percent_energy.carbs}%)
+                  </div>
+                  <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#111827', lineHeight: 1.1 }}>
+                    {liveTargets.carbs_g} <span style={{ fontSize: '0.78rem', color: '#6b7280', fontWeight: 500 }}>g</span>
+                  </div>
+                  <div style={{ fontSize: '0.68rem', color: '#9ca3af', marginTop: 4 }}>Activity & stamina fuel</div>
+                </div>
+
+                {/* Fat */}
+                <div style={{ background: '#fff', padding: '12px 14px', borderRadius: 12, border: '1px solid #d1fae5', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+                  <div style={{ fontSize: '0.74rem', color: '#7c3aed', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
+                    <Droplet size={14} /> Fat ({liveTargets.macro_percent_energy.fat}%)
+                  </div>
+                  <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#111827', lineHeight: 1.1 }}>
+                    {liveTargets.fat_g} <span style={{ fontSize: '0.78rem', color: '#6b7280', fontWeight: 500 }}>g</span>
+                  </div>
+                  <div style={{ fontSize: '0.68rem', color: '#9ca3af', marginTop: 4 }}>Essential fatty acids</div>
+                </div>
+              </div>
+
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.7)',
+                padding: '8px 12px',
+                borderRadius: 8,
+                fontSize: '0.75rem',
+                color: '#065f46',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6
+              }}>
+                <span>💡 <strong>Age-Adapted Guidance:</strong> {liveTargets.description}</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── Footer Buttons ──────────────────────────────────── */}
@@ -800,23 +933,23 @@ export const ProfileSettingsModal = () => {
             type="button"
             onClick={handleSave}
             style={{
-              padding: '9px 22px',
+              padding: '9px 24px',
               borderRadius: 10,
               border: 'none',
               background: '#10b981',
               color: '#fff',
-              fontSize: '0.84rem',
+              fontSize: '0.88rem',
               fontWeight: 700,
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: 6,
-              boxShadow: '0 2px 6px rgba(16,185,129,0.25)'
+              gap: 7,
+              boxShadow: '0 3px 10px rgba(16,185,129,0.3)'
             }}
             onMouseEnter={e => e.currentTarget.style.background = '#059669'}
             onMouseLeave={e => e.currentTarget.style.background = '#10b981'}
           >
-            <Save size={15} />
+            <Save size={16} />
             Save Profile
           </button>
         </div>
