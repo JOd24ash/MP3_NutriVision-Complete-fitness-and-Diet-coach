@@ -4,7 +4,6 @@ import { Navbar } from './components/layout/Navbar';
 import { Sidebar } from './components/layout/Sidebar';
 import { ToastContainer } from './components/layout/Toast';
 import { TodaySummary } from './components/dashboard/TodaySummary';
-import { NutritionDashboard } from './components/dashboard/NutritionDashboard';
 import { PhotoScanner } from './components/meal-scanner/PhotoScanner';
 import { ManualFoodEntry } from './components/meal-scanner/ManualFoodEntry';
 import { VoiceLoggerReal as VoiceLogger } from './components/voice-logger/VoiceLoggerReal';
@@ -33,7 +32,6 @@ export const App = () => {
         {/* Main Content */}
         <main className="app-main">
           {activeTab === 'dashboard' && <TodaySummary />}
-          {activeTab === 'nutrition' && <NutritionDashboard />}
           {activeTab === 'scan' && <PhotoScanner />}
           {activeTab === 'manual' && <ManualFoodEntry />}
           {activeTab === 'voice' && <VoiceLogger />}

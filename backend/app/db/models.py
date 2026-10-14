@@ -47,6 +47,7 @@ class GuardrailStatus(str, enum.Enum):
 
 class MetricType(str, enum.Enum):
     weight = "weight"
+    water = "water"
     blood_sugar = "blood_sugar"
     bp = "bp"
 

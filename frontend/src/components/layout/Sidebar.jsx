@@ -12,8 +12,7 @@ import {
   ChevronRight,
   Apple,
   Leaf,
-  Settings,
-  PieChart
+  Settings
 } from 'lucide-react';
 
 export const Sidebar = () => {
@@ -30,7 +29,6 @@ export const Sidebar = () => {
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, desc: 'Today\'s overview' },
-    { id: 'nutrition', label: 'Nutrition Plan', icon: PieChart, desc: 'Macro targets & foods' },
     { id: 'scan', label: 'Plate Scanner', icon: Camera, desc: 'AI meal detection' },
     { id: 'manual', label: 'Add Food', icon: Apple, desc: 'Search foods manually' },
     { id: 'voice', label: 'Voice Logger', icon: Mic, desc: 'Log by speaking' },

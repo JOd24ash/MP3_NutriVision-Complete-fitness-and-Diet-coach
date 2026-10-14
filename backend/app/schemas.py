@@ -110,6 +110,9 @@ class MealResponse(BaseModel):
     transcript: Optional[str] = None
     needs_manual_review: bool = False
     confirmed: bool = False
+    image_url: Optional[str] = None
+    meal_type: Optional[str] = None
+    source: Optional[str] = None
 
 
 class MealLogSummary(BaseModel):
@@ -119,6 +122,8 @@ class MealLogSummary(BaseModel):
     items: List[MealItemOut]
     total: MealTotalOut
     confirmed: bool = True
+    image_url: Optional[str] = None
+    meal_type: Optional[str] = None
 
 
 class HealthMetricIn(BaseModel):

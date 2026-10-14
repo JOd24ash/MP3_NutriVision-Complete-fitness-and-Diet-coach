@@ -9,6 +9,7 @@ Run with: uvicorn app.main:app --reload   (see SETUP.md)
 """
 
 import os
+import uuid
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from typing import List, Optional
@@ -60,6 +61,7 @@ from .speech.transcriber import get_transcriber
 from .vision.detector import get_detector, vision_status
 
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 app = FastAPI(title="NutriVision API", version="0.1.0")
 
@@ -74,6 +76,9 @@ app.add_middleware(
 
 API_PREFIX = "/api/v1"
 MAX_PHOTO_BYTES = 10 * 1024 * 1024
+UPLOADS_DIR = Path(__file__).resolve().parent.parent / "uploads"
+UPLOADS_DIR.mkdir(exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{API_PREFIX}/auth/login")
 
 
@@ -132,8 +137,8 @@ def compute_total(rows: List[MealItemRow]) -> MealTotalOut:
     )
 
 
-def persist_meal(db: Session, user_id: str, source: MealSource, rows: List[MealItemRow]) -> MealLog:
-    meal_log = MealLog(user_id=user_id, source=source)
+def persist_meal(db: Session, user_id: str, source: MealSource, rows: List[MealItemRow], raw_image_url: Optional[str] = None) -> MealLog:
+    meal_log = MealLog(user_id=user_id, source=source, raw_image_url=raw_image_url)
     db.add(meal_log)
     db.flush()  # assigns meal_log.id
 
@@ -190,6 +195,9 @@ def meal_log_to_response(meal_log: MealLog, transcript: Optional[str] = None) ->
         transcript=transcript,
         needs_manual_review=needs_review,
         confirmed=is_confirmed,
+        image_url=meal_log.raw_image_url,
+        meal_type=meal_log.meal_type,
+        source=meal_log.source.value,
     )
 
 
@@ -321,7 +329,10 @@ async def log_meal_photo(
     profile = db.query(MedicalProfile).filter(MedicalProfile.user_id == user_id).first()
     rows = evaluate_meal(nutrition_results, profile_to_schema(profile))
 
-    meal_log = persist_meal(db, user_id, MealSource.photo, rows)
+    suffix = ".jpg" if image.content_type == "image/jpeg" else ".png" if image.content_type == "image/png" else ".webp"
+    image_name = f"{uuid.uuid4()}{suffix}"
+    (UPLOADS_DIR / image_name).write_bytes(image_bytes)
+    meal_log = persist_meal(db, user_id, MealSource.photo, rows, raw_image_url=f"/uploads/{image_name}")
     response = meal_log_to_response(meal_log)
     response.needs_manual_review = (
         reference_object_px is None or reference_object_real_cm is None
@@ -495,6 +506,8 @@ def list_meals(
                 items=response.items,
                 total=response.total,
                 confirmed=(meal_log.confirmed == "true"),
+                image_url=meal_log.raw_image_url,
+                meal_type=meal_log.meal_type,
             )
         )
     return summaries
@@ -623,7 +636,98 @@ def daily_summary(user_id: str, date: date, db: Session = Depends(get_db), curre
     else:
         raise HTTPException(409, "Complete and save your profile before viewing nutrition targets")
     from .nutrition.food_data import FOOD_DATA_SOURCE
-    return {"date": str(date), "target": target, "food_data_source": FOOD_DATA_SOURCE, "consumed": {key: round(value, 1) for key, value in consumed.items()}, "burned": burned, "remaining": {"calories": round(target["calories"] + burned - consumed["calories"]), "protein_g": round(target["protein_g"] - consumed["protein_g"], 1), "carbs_g": round(target["carbs_g"] - consumed["carbs_g"], 1), "fat_g": round(target["fat_g"] - consumed["fat_g"], 1)}}
+    return {
+        "date": str(date),
+        "target": target,
+        "food_data_source": FOOD_DATA_SOURCE,
+        "consumed": {key: round(value, 1) for key, value in consumed.items()},
+        "burned": burned,
+        "remaining": {
+            "calories": round(target["calories"] + burned - consumed["calories"]),
+            "protein_g": round(target["protein_g"] - consumed["protein_g"], 1),
+            "carbs_g": round(target["carbs_g"] - consumed["carbs_g"], 1),
+            "fat_g": round(target["fat_g"] - consumed["fat_g"], 1)
+        }
+    }
+
+
+@app.get(f"{API_PREFIX}/users/{{user_id}}/weekly-summary")
+def weekly_summary(
+    user_id: str,
+    anchor_date: Optional[date] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Return 7-day nutrition consumed vs target data.
+
+    The week window is the 7 days ending on *anchor_date* (inclusive).
+    Defaults to today so the most recent 7 days are always shown.
+    """
+    require_self(user_id, current_user)
+    from .db.models import FitnessGoal
+    from .fitness.calculator import targets
+    from .nutrition.food_data import FOOD_DATA_SOURCE
+
+    goal = db.get(FitnessGoal, user_id)
+    if not goal:
+        raise HTTPException(409, "Complete and save your profile before viewing nutrition targets")
+
+    target = targets(goal.age, goal.sex, goal.height_cm, goal.weight_kg, goal.activity_level, goal.goal)
+
+    end_day = anchor_date or date.today()
+    days = [end_day - timedelta(days=i) for i in range(6, -1, -1)]  # oldest → newest
+
+    result = []
+    for day in days:
+        day_start = datetime.combine(day, time.min)
+        day_end = datetime.combine(day + timedelta(days=1), time.min)
+        meals = (
+            db.query(MealLog)
+            .filter(
+                MealLog.user_id == user_id,
+                MealLog.logged_at >= day_start,
+                MealLog.logged_at < day_end,
+                MealLog.confirmed == "true"
+            )
+            .all()
+        )
+        consumed = {
+            "calories": round(sum(item.calories or 0 for m in meals for item in m.items), 1),
+            "protein_g": round(sum(item.protein_g or 0 for m in meals for item in m.items), 1),
+            "carbs_g": round(sum(item.carbs_g or 0 for m in meals for item in m.items), 1),
+            "fat_g": round(sum(item.fat_g or 0 for m in meals for item in m.items), 1),
+        }
+        result.append({
+            "date": str(day),
+            "day_label": day.strftime("%a"),          # "Mon", "Tue", …
+            "day_short": day.strftime("%b %d"),       # "Oct 04"
+            "consumed": consumed,
+            "target": {
+                "calories": target["calories"],
+                "protein_g": target["protein_g"],
+                "carbs_g": target["carbs_g"],
+                "fat_g": target["fat_g"],
+            },
+            "has_data": any(v > 0 for v in consumed.values()),
+        })
+
+    totals_consumed = {
+        k: round(sum(d["consumed"][k] for d in result), 1)
+        for k in ("calories", "protein_g", "carbs_g", "fat_g")
+    }
+    avg_consumed = {k: round(v / 7, 1) for k, v in totals_consumed.items()}
+
+    return {
+        "week_start": str(days[0]),
+        "week_end": str(days[-1]),
+        "days": result,
+        "target": target,
+        "totals_consumed": totals_consumed,
+        "avg_consumed": avg_consumed,
+        "food_data_source": FOOD_DATA_SOURCE,
+    }
+
+
 
 @app.get(f"{API_PREFIX}/users/{{user_id}}/meal-suggestions")
 def meal_suggestions(user_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

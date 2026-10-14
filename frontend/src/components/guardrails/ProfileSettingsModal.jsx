@@ -25,6 +25,17 @@ export const ProfileSettingsModal = () => {
   const [allergy, setAllergy] = useState(user?.allergy || '');
   const [isEditing, setIsEditing] = useState(true);
 
+  // Derive live targets from current form values so the preview section renders correctly.
+  // calculateTargets returns null when required fields are missing — the JSX guards with `liveTargets &&`.
+  const liveTargets = calculateTargets({
+    age,
+    sex,
+    height,
+    weight,
+    activityLevel,
+    goal: healthGoal === 'fitness' ? 'fitness' : healthGoal,
+  });
+
   useEffect(() => {
     if (user) {
       if (user.name) setFullName(user.name);

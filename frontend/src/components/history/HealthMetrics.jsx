@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { api } from '../../api/client';
 import {
   User, Target, ChevronRight, Scale, Activity,
   Droplet, TrendingUp, Clock, Zap, Lightbulb,
@@ -7,7 +8,7 @@ import {
 } from 'lucide-react';
 
 export const HealthMetrics = () => {
-  const { showToast, setIsChatOpen, setActiveTab } = useApp();
+  const { user, showToast, setIsChatOpen, setActiveTab } = useApp();
 
   const [timeRange, setTimeRange] = useState('30D');
   const [activeModal, setActiveModal] = useState(null); // 'weight' | 'hydration' | null
@@ -15,97 +16,43 @@ export const HealthMetrics = () => {
   const [hydrationInput, setHydrationInput] = useState('');
 
   // Metrics state
-  const [weight, setWeight] = useState(74.2);
-  const [bodyFat, setBodyFat] = useState(18.5);
-  const [bmi, setBmi] = useState(22.8);
-  const [hydration, setHydration] = useState(2.4);
+  const [metrics, setMetrics] = useState([]);
+  const weightMetrics = useMemo(() => metrics.filter(item => item.metric_type === 'weight').sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at)), [metrics]);
+  const waterMetrics = useMemo(() => metrics.filter(item => item.metric_type === 'water'), [metrics]);
+  const weight = weightMetrics.at(-1)?.value ?? null;
+  const bodyFat = null;
+  const bmi = user?.height_cm && weight ? Math.round((weight / ((user.height_cm / 100) ** 2)) * 10) / 10 : null;
+  const hydration = waterMetrics.reduce((sum, item) => sum + item.value, 0) / 1000;
 
   // Weight history data for SVG chart matching screenshot
-  const chartData = [
-    { date: 'Sep 11', val: 77.8 },
-    { date: 'Sep 14', val: 77.2 },
-    { date: 'Sep 17', val: 76.9 },
-    { date: 'Sep 20', val: 76.2 },
-    { date: 'Sep 23', val: 75.8 },
-    { date: 'Sep 26', val: 75.1 },
-    { date: 'Sep 29', val: 74.8 },
-    { date: 'Oct 02', val: 74.6 },
-    { date: 'Oct 05', val: 74.5 },
-    { date: 'Oct 06', val: 74.4 },
-    { date: 'Oct 08', val: 74.3 },
-    { date: 'Oct 10', val: 74.2 },
-  ];
+  const chartData = weightMetrics.map(item => ({ date: new Date(item.recorded_at).toLocaleDateString([], { month: 'short', day: 'numeric' }), val: item.value }));
+  const recentMeasurements = metrics.slice().sort((a, b) => new Date(b.recorded_at) - new Date(a.recorded_at)).slice(0, 4).map(item => ({ id: item.id, type: item.metric_type.replace('_', ' '), val: `${item.value} ${item.unit}`, time: new Date(item.recorded_at).toLocaleString(), icon: item.metric_type === 'weight' ? Scale : Droplet, iconColor: '#059669', bgColor: '#ecfdf5' }));
 
-  // Recent measurements matching screenshot
-  const [recentMeasurements, setRecentMeasurements] = useState([
-    {
-      id: 'm-1',
-      type: 'Weight',
-      val: '74.2 kg',
-      time: '10 Oct 2026, 08:00 AM',
-      icon: Scale,
-      iconColor: '#059669',
-      bgColor: '#ecfdf5'
-    },
-    {
-      id: 'm-2',
-      type: 'Body Fat',
-      val: '18.5 %',
-      time: '10 Oct 2026, 08:00 AM',
-      icon: Activity,
-      iconColor: '#7c3aed',
-      bgColor: '#faf5ff'
-    },
-    {
-      id: 'm-3',
-      type: 'Blood Pressure',
-      val: '122/80 mmHg',
-      time: '09 Oct 2026, 07:45 PM',
-      icon: HeartPulse,
-      iconColor: '#dc2626',
-      bgColor: '#fef2f2'
-    },
-    {
-      id: 'm-4',
-      type: 'Resting Heart Rate',
-      val: '68 bpm',
-      time: '09 Oct 2026, 07:30 AM',
-      icon: Activity,
-      iconColor: '#d97706',
-      bgColor: '#fffbeb'
-    }
-  ]);
+  useEffect(() => {
+    if (!user?.id) return;
+    api.metrics.list(user.id).then(setMetrics).catch(error => showToast?.(error.message || 'Could not load health metrics.', 'danger'));
+  }, [user?.id]);
 
-  const handleLogWeight = (e) => {
+  const handleLogWeight = async (e) => {
     e.preventDefault();
     if (!weightInput) return;
     const val = parseFloat(weightInput);
     if (!isNaN(val)) {
-      setWeight(val);
-      setRecentMeasurements(prev => [
-        {
-          id: 'm-' + Date.now(),
-          type: 'Weight',
-          val: `${val} kg`,
-          time: 'Today, Just now',
-          icon: Scale,
-          iconColor: '#059669',
-          bgColor: '#ecfdf5'
-        },
-        ...prev.slice(0, 3)
-      ]);
+      const metric = await api.metrics.add(user.id, { metric_type: 'weight', value: val, unit: 'kg' });
+      setMetrics(prev => [metric, ...prev]);
       showToast(`Logged weight: ${val} kg`, 'success');
       setWeightInput('');
       setActiveModal(null);
     }
   };
 
-  const handleLogHydration = (e) => {
+  const handleLogHydration = async (e) => {
     e.preventDefault();
     if (!hydrationInput) return;
     const val = parseFloat(hydrationInput);
     if (!isNaN(val)) {
-      setHydration(prev => Math.min(5.0, Math.round((prev + val) * 10) / 10));
+      const metric = await api.metrics.add(user.id, { metric_type: 'water', value: val * 1000, unit: 'ml' });
+      setMetrics(prev => [metric, ...prev]);
       showToast(`Added ${val} L of water!`, 'success');
       setHydrationInput('');
       setActiveModal(null);
@@ -121,13 +68,13 @@ export const HealthMetrics = () => {
   const maxVal = 80;
 
   const points = chartData.map((d, i) => {
-    const x = paddingX + (i / (chartData.length - 1)) * (chartWidth - paddingX * 2);
+    const x = paddingX + (i / Math.max(1, chartData.length - 1)) * (chartWidth - paddingX * 2);
     const y = chartHeight - paddingY - ((d.val - minVal) / (maxVal - minVal)) * (chartHeight - paddingY * 2);
     return { x, y, val: d.val, date: d.date };
   });
 
   const pathD = points.reduce((acc, p, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`, '');
-  const areaD = `${pathD} L ${points[points.length - 1].x} ${chartHeight - paddingY} L ${points[0].x} ${chartHeight - paddingY} Z`;
+  const areaD = points.length ? `${pathD} L ${points[points.length - 1].x} ${chartHeight - paddingY} L ${points[0].x} ${chartHeight - paddingY} Z` : '';
 
   return (
     <div className="health-metrics-page" style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
