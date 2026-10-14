@@ -19,7 +19,8 @@ import {
   Activity,
   Sprout,
   ChevronRight,
-  ArrowRight
+  ArrowRight,
+  PieChart
 } from 'lucide-react';
 
 // Circular Donut Gauge Component
@@ -64,6 +65,7 @@ export const TodaySummary = () => {
   const { user, setActiveTab, setIsProfileModalOpen, showToast, profileRefreshTrigger } = useApp();
   const [summary, setSummary] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
+  const [goals, setGoals] = useState(null);
   const [metricTab, setMetricTab] = useState('calories');
   const [waterMl, setWaterMl] = useState(1200);
 
@@ -75,13 +77,14 @@ export const TodaySummary = () => {
         .then(data => { if (data) setSummary(data); })
         .catch(() => {});
       api.fitness.suggestions(user.id).then(setSuggestions).catch(() => setSuggestions([]));
+      api.fitness.goals(user.id).then(setGoals).catch(() => setGoals(null));
     }
   }, [user?.id, user?.age, user?.height, user?.weight, user?.activity_level, user?.health_goal, user?.diet_preference, profileRefreshTrigger]);
 
   // Dynamic greeting based on time of day
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-  const firstName = user?.name ? user.name.split(' ')[0] : 'Yash';
+  const firstName = user?.name ? user.name.split(' ')[0] : 'there';
 
   // Macro stats (prefer user/api data if present, fall back to default goals)
   const caloriesConsumed = summary?.consumed?.calories ?? 0;
@@ -224,6 +227,30 @@ export const TodaySummary = () => {
               <div style={{ fontSize: '0.78rem', color: '#71717a', marginTop: 2 }}>
                 Balanced Nutrition • Fitness • Better You
               </div>
+            </div>
+          </div>
+          <ChevronRight size={18} style={{ color: '#9ca3af' }} />
+        </div>
+
+        {/* Nutrition Plan Shortcut */}
+        <div
+          className="dash-daily-goal-card"
+          onClick={() => setActiveTab('nutrition')}
+          title="View your personalized nutrition plan"
+          style={{ cursor: 'pointer' }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{ 
+              width: 44, height: 44, borderRadius: 14, 
+              background: '#eff6ff', color: '#2563eb', 
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: '1px solid #bfdbfe'
+            }}>
+              <PieChart size={22} />
+            </div>
+            <div>
+              <div style={{ fontSize: '1rem', fontWeight: 700, color: '#18181b' }}>Nutrition Plan</div>
+              <div style={{ fontSize: '0.78rem', color: '#71717a', marginTop: 2 }}>Macro targets · foods · methods</div>
             </div>
           </div>
           <ChevronRight size={18} style={{ color: '#9ca3af' }} />
@@ -767,7 +794,7 @@ export const TodaySummary = () => {
         </div>
 
         <div className="dash-health-bottom">
-          {/* 4 Health Stats */}
+          {/* 4 Health Stats — live from API */}
           <div className="dash-panel" style={{ padding: '20px 24px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
             {/* Weight */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -776,7 +803,9 @@ export const TodaySummary = () => {
               </div>
               <div>
                 <div style={{ fontSize: '0.72rem', color: '#6b7280' }}>Weight</div>
-                <div style={{ fontSize: '1rem', fontWeight: 800, color: '#18181b' }}>55 kg</div>
+                <div style={{ fontSize: '1rem', fontWeight: 800, color: '#18181b' }}>
+                  {goals?.weight_kg ? `${goals.weight_kg} kg` : (user?.weight ? `${user.weight} kg` : '—')}
+                </div>
                 <div style={{ fontSize: '0.68rem', color: '#9ca3af' }}>(from profile)</div>
               </div>
             </div>
@@ -788,7 +817,9 @@ export const TodaySummary = () => {
               </div>
               <div>
                 <div style={{ fontSize: '0.72rem', color: '#6b7280' }}>Height</div>
-                <div style={{ fontSize: '0.96rem', fontWeight: 800, color: '#18181b' }}>5'6" (168 cm)</div>
+                <div style={{ fontSize: '0.96rem', fontWeight: 800, color: '#18181b' }}>
+                  {goals?.height_cm ? `${goals.height_cm} cm` : (user?.height ? `${user.height} cm` : '—')}
+                </div>
                 <div style={{ fontSize: '0.68rem', color: '#9ca3af' }}>(from profile)</div>
               </div>
             </div>
@@ -800,7 +831,11 @@ export const TodaySummary = () => {
               </div>
               <div>
                 <div style={{ fontSize: '0.72rem', color: '#6b7280' }}>Activity Level</div>
-                <div style={{ fontSize: '1rem', fontWeight: 800, color: '#18181b' }}>Moderate</div>
+                <div style={{ fontSize: '1rem', fontWeight: 800, color: '#18181b', textTransform: 'capitalize' }}>
+                  {goals?.activity_level
+                    ? goals.activity_level.replace('_', ' ')
+                    : (user?.activity_level ? user.activity_level.replace('_', ' ') : '—')}
+                </div>
                 <div style={{ fontSize: '0.68rem', color: '#9ca3af' }}>(from profile)</div>
               </div>
             </div>
@@ -812,7 +847,11 @@ export const TodaySummary = () => {
               </div>
               <div>
                 <div style={{ fontSize: '0.72rem', color: '#6b7280' }}>Goal</div>
-                <div style={{ fontSize: '0.96rem', fontWeight: 800, color: '#18181b' }}>Maintain Weight</div>
+                <div style={{ fontSize: '0.96rem', fontWeight: 800, color: '#18181b', textTransform: 'capitalize' }}>
+                  {goals?.goal
+                    ? { gain: 'Weight Gain', maintain: 'Maintain Weight', lose: 'Weight Loss', fitness: 'General Fitness', general_fitness: 'General Fitness' }[goals.goal] || goals.goal
+                    : (user?.health_goal ? user.health_goal : '—')}
+                </div>
                 <div style={{ fontSize: '0.68rem', color: '#9ca3af' }}>(from profile)</div>
               </div>
             </div>
