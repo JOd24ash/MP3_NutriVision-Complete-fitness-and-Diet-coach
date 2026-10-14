@@ -59,7 +59,8 @@ YOLO_CHECKPOINT_PATH=/checkpoints/best.pt
 YOLO_CONFIDENCE=0.25
 YOLO_IMAGE_SIZE=640
 # YOLO_DEVICE=cpu  # optional; omit to let Ultralytics select an available device
-ANTHROPIC_API_KEY=<optional chat-only key>
+GROQ_API_KEY=<optional chat-only key>
+NUTRIVISION_LLM_MODEL=llama-3.3-70b-versatile
 ```
 
 ## Suggested Repo-Level Scripts

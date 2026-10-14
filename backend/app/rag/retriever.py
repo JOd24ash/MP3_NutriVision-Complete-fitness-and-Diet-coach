@@ -14,9 +14,25 @@ from .ingest import load_documents
 from .models import RetrievedChunk
 
 COLLECTION_NAME = "icmr_nutrition_kb"
-DEFAULT_PERSIST_DIR = "./chroma_data"
+
+# Resolve paths relative to this file so the server CWD doesn't matter
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_BACKEND_ROOT = os.path.abspath(os.path.join(_HERE, "..", ".."))
+DEFAULT_PERSIST_DIR = os.path.join(_BACKEND_ROOT, "chroma_data")
+DEFAULT_KB_DIR = os.path.join(_BACKEND_ROOT, "knowledge_base", "icmr_guidelines")
 
 _client: Optional[ClientAPI] = None
+
+# Cache the embedding function so the SentenceTransformer model is only
+# loaded once per process, not on every chat request.
+_embedding_fn: Optional[LocalSentenceTransformerEmbeddingFunction] = None
+
+
+def _get_embedding_fn() -> LocalSentenceTransformerEmbeddingFunction:
+    global _embedding_fn
+    if _embedding_fn is None:
+        _embedding_fn = LocalSentenceTransformerEmbeddingFunction()
+    return _embedding_fn
 
 
 def get_client(persist_dir: str = DEFAULT_PERSIST_DIR) -> ClientAPI:
@@ -30,11 +46,11 @@ def get_client(persist_dir: str = DEFAULT_PERSIST_DIR) -> ClientAPI:
 
 def get_or_build_collection(
     client: Optional[ClientAPI] = None,
-    kb_dir: str = "knowledge_base/icmr_guidelines",
+    kb_dir: str = DEFAULT_KB_DIR,
 ):
     """Gets the KB collection, ingesting documents into it if it's empty."""
     client = client or get_client()
-    ef = LocalSentenceTransformerEmbeddingFunction()
+    ef = _get_embedding_fn()
     collection = client.get_or_create_collection(name=COLLECTION_NAME, embedding_function=ef)
 
     if collection.count() == 0:
@@ -51,7 +67,16 @@ def get_or_build_collection(
 
 def retrieve(query: str, k: int = 3, client: Optional[ClientAPI] = None) -> List[RetrievedChunk]:
     collection = get_or_build_collection(client=client)
-    result = collection.query(query_texts=[query], n_results=k)
+
+    count = collection.count()
+    if count == 0:
+        # Knowledge base is empty — return no chunks rather than crashing
+        return []
+
+    # Never request more results than documents in the collection
+    n = min(k, count)
+
+    result = collection.query(query_texts=[query], n_results=n)
 
     chunks: List[RetrievedChunk] = []
     ids = result.get("ids", [[]])[0]

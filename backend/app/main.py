@@ -792,7 +792,30 @@ def chat(
                 )
             )
 
+    # Build user profile context so the AI can answer "how is my profile" etc.
+    user_profile_ctx: dict = {}
+    from .db.models import FitnessGoal
+    goal_row = db.query(FitnessGoal).filter(FitnessGoal.user_id == payload.user_id).first()
+    if goal_row:
+        user_profile_ctx = {
+            "name": current_user.name,
+            "age": goal_row.age,
+            "sex": goal_row.sex,
+            "weight_kg": goal_row.weight_kg,
+            "height_cm": goal_row.height_cm,
+            "activity_level": goal_row.activity_level,
+            "goal": goal_row.goal,
+            "diet_preference": goal_row.diet_preference,
+        }
+        # Add medical profile
+        med = db.query(MedicalProfile).filter(MedicalProfile.user_id == payload.user_id).first()
+        if med:
+            user_profile_ctx["conditions"] = med.conditions or []
+            user_profile_ctx["allergies"] = med.allergies or []
+
     try:
-        return answer_chat(payload, meal_items=meal_rows)
+        return answer_chat(payload, meal_items=meal_rows, user_profile=user_profile_ctx)
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chat service error: {str(e)}")
