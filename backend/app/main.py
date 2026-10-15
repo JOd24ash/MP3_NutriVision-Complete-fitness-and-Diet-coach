@@ -10,7 +10,7 @@ Run with: uvicorn app.main:app --reload   (see SETUP.md)
 
 import os
 import uuid
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional
 
@@ -626,7 +626,7 @@ def daily_summary(user_id: str, date: date, db: Session = Depends(get_db), curre
     from .fitness.activities import calories_burned
     from .fitness.calculator import targets
     goal = db.get(FitnessGoal, user_id)
-    start, end = datetime.combine(date, time.min), datetime.combine(date + timedelta(days=1), time.min)
+    start, end = datetime.combine(date, time.min, tzinfo=timezone.utc), datetime.combine(date + timedelta(days=1), time.min, tzinfo=timezone.utc)
     meals = db.query(MealLog).filter(MealLog.user_id == user_id, MealLog.logged_at >= start, MealLog.logged_at < end, MealLog.confirmed == "true").all()
     consumed = {"calories": sum(item.calories or 0 for meal in meals for item in meal.items), "protein_g": sum(item.protein_g or 0 for meal in meals for item in meal.items), "carbs_g": sum(item.carbs_g or 0 for meal in meals for item in meal.items), "fat_g": sum(item.fat_g or 0 for meal in meals for item in meal.items)}
     activities = db.query(ActivityLog).filter(ActivityLog.user_id == user_id, ActivityLog.logged_at >= start, ActivityLog.logged_at < end).all()
@@ -679,8 +679,8 @@ def weekly_summary(
 
     result = []
     for day in days:
-        day_start = datetime.combine(day, time.min)
-        day_end = datetime.combine(day + timedelta(days=1), time.min)
+        day_start = datetime.combine(day, time.min, tzinfo=timezone.utc)
+        day_end = datetime.combine(day + timedelta(days=1), time.min, tzinfo=timezone.utc)
         meals = (
             db.query(MealLog)
             .filter(
@@ -821,7 +821,7 @@ def chat(
         .limit(20)
         .all()
     )
-    today_start = datetime.combine(date.today(), time.min)
+    today_start = datetime.combine(date.today(), time.min, tzinfo=timezone.utc)
     today_meals = [meal for meal in recent_meals if meal.logged_at and meal.logged_at >= today_start]
     consumed = {
         "calories": round(sum(item.calories or 0 for meal in today_meals for item in meal.items), 1),

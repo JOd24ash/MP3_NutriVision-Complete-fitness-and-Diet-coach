@@ -34,6 +34,12 @@ def _get_embedding_fn():
     return _embedding_fn
 
 
+def _collection_name(embedding_fn) -> str:
+    """Keep indexes made with incompatible embedding sizes separate."""
+    dimension = len(embedding_fn(["dimension check"])[0])
+    return f"{COLLECTION_NAME}_{dimension}d"
+
+
 def get_client(persist_dir: str = DEFAULT_PERSIST_DIR) -> ClientAPI:
     """Reuses a module-level client so repeated calls don't reopen storage."""
     global _client
@@ -50,7 +56,9 @@ def get_or_build_collection(
     """Gets the KB collection, ingesting documents into it if it's empty."""
     client = client or get_client()
     ef = _get_embedding_fn()
-    collection = client.get_or_create_collection(name=COLLECTION_NAME, embedding_function=ef)
+    collection = client.get_or_create_collection(
+        name=_collection_name(ef), embedding_function=ef
+    )
 
     if collection.count() == 0:
         docs = load_documents(kb_dir)
