@@ -55,6 +55,14 @@ export const HealthMetricsExample = () => {
   const bmr = summary?.target?.bmr || fitnessData?.bmr || null;
   const tdee = summary?.target?.tdee || fitnessData?.tdee || null;
   const dailyCalorieTarget = summary?.target?.calories || fitnessData?.calories || 2000;
+  const activeGoal = fitnessData?.goal || profile?.health_goal || user?.health_goal || 'fitness';
+  const targetWeight = useMemo(() => {
+    if (!latestWeight) return null;
+    const savedTarget = Number(profile?.target_weight_kg || user?.target_weight_kg);
+    if (activeGoal === 'gain') return Math.max(savedTarget || 0, Number(latestWeight) + 5);
+    if (activeGoal === 'lose') return Math.min(savedTarget || Number.POSITIVE_INFINITY, Number(latestWeight) - 5);
+    return savedTarget || Number(latestWeight);
+  }, [activeGoal, latestWeight, profile?.target_weight_kg, user?.target_weight_kg]);
 
   // Computed Values
   const bmi = useMemo(() => {
@@ -196,8 +204,8 @@ export const HealthMetricsExample = () => {
           <Target size={20} color="#059669" />
           <div>
             <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#111827' }}>
-              Goal: {profile?.health_goal === 'lose' ? 'Weight Loss' : 
-                     profile?.health_goal === 'gain' ? 'Muscle Gain' : 'Maintenance'}
+              Goal: {activeGoal === 'lose' ? 'Weight Loss' :
+                     activeGoal === 'gain' ? 'Muscle Gain' : 'Maintenance'}
             </div>
           </div>
         </div>
@@ -242,7 +250,7 @@ export const HealthMetricsExample = () => {
             {latestWeight ? `${latestWeight} kg` : '--'}
           </div>
           <div style={{ fontSize: '0.8rem', color: '#9ca3af', marginTop: '8px' }}>
-            Target: {profile?.target_weight_kg || (latestWeight - 5)} kg
+            Target: {targetWeight ? targetWeight.toFixed(1) : '--'} kg
           </div>
         </div>
 

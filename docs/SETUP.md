@@ -61,6 +61,9 @@ YOLO_IMAGE_SIZE=640
 # YOLO_DEVICE=cpu  # optional; omit to let Ultralytics select an available device
 GROQ_API_KEY=<optional chat-only key>
 NUTRIVISION_LLM_MODEL=llama-3.3-70b-versatile
+# Optional: sentence_transformer enables semantic retrieval but may download a model.
+# The default "hashing" works fully offline.
+RAG_EMBEDDING_BACKEND=hashing
 ```
 
 ## Suggested Repo-Level Scripts

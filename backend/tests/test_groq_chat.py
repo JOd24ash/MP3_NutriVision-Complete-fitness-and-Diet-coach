@@ -38,3 +38,32 @@ def test_generate_answer_reports_groq_failures_without_exposing_the_key(monkeypa
         chat.generate_answer("hello")
 
     assert "test-key" not in str(error.value)
+
+
+def test_answer_chat_uses_grounded_local_reply_without_groq(monkeypatch):
+    chunk = chat.RetrievedChunk(
+        chunk_id="guide-1",
+        source_title="ICMR Guide",
+        text="Eat a variety of pulses, vegetables, and whole grains.",
+    )
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.setattr(chat, "retrieve", lambda *_args, **_kwargs: [chunk])
+
+    response = chat.answer_chat(
+        chat.ChatRequest(user_id="user-1", message="How is my diet?"),
+        user_profile={"goal": "gain", "diet_preference": "veg"},
+    )
+
+    assert "Gain weight / Build muscle" in response.answer
+    assert "pulses" in response.answer
+    assert response.sources[0].title == "ICMR Guide"
+
+
+def test_build_prompt_includes_server_side_dashboard_data():
+    prompt = chat.build_prompt(
+        "How am I doing?", [], [],
+        app_data={"dashboard": {"consumed_today": {"calories": 1200}}, "meal_history": [], "health_metrics": []},
+    )
+
+    assert "USER APP DATA:" in prompt
+    assert '"calories": 1200' in prompt

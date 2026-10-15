@@ -793,7 +793,7 @@ def chat(
             )
 
     # Build user profile context so the AI can answer "how is my profile" etc.
-    user_profile_ctx: dict = {}
+    user_profile_ctx: dict = {"name": current_user.name}
     from .db.models import FitnessGoal
     goal_row = db.query(FitnessGoal).filter(FitnessGoal.user_id == payload.user_id).first()
     if goal_row:
@@ -807,14 +807,68 @@ def chat(
             "goal": goal_row.goal,
             "diet_preference": goal_row.diet_preference,
         }
-        # Add medical profile
-        med = db.query(MedicalProfile).filter(MedicalProfile.user_id == payload.user_id).first()
-        if med:
-            user_profile_ctx["conditions"] = med.conditions or []
-            user_profile_ctx["allergies"] = med.allergies or []
+    med = db.query(MedicalProfile).filter(MedicalProfile.user_id == payload.user_id).first()
+    if med:
+        user_profile_ctx["conditions"] = med.conditions or []
+        user_profile_ctx["allergies"] = med.allergies or []
+
+    # Provide Groq a bounded, server-built view of every user-facing section.
+    # The client never receives or sends the provider key or another user's data.
+    recent_meals = (
+        db.query(MealLog)
+        .filter(MealLog.user_id == payload.user_id, MealLog.confirmed == "true")
+        .order_by(MealLog.logged_at.desc())
+        .limit(20)
+        .all()
+    )
+    today_start = datetime.combine(date.today(), time.min)
+    today_meals = [meal for meal in recent_meals if meal.logged_at and meal.logged_at >= today_start]
+    consumed = {
+        "calories": round(sum(item.calories or 0 for meal in today_meals for item in meal.items), 1),
+        "protein_g": round(sum(item.protein_g or 0 for meal in today_meals for item in meal.items), 1),
+        "carbs_g": round(sum(item.carbs_g or 0 for meal in today_meals for item in meal.items), 1),
+        "fat_g": round(sum(item.fat_g or 0 for meal in today_meals for item in meal.items), 1),
+    }
+    dashboard = {"date": str(date.today()), "consumed_today": consumed}
+    if goal_row:
+        from .fitness.calculator import targets
+        target = targets(goal_row.age, goal_row.sex, goal_row.height_cm, goal_row.weight_kg, goal_row.activity_level, goal_row.goal)
+        dashboard["target"] = {key: target[key] for key in ("calories", "protein_g", "carbs_g", "fat_g")}
+        dashboard["remaining"] = {
+            key: round(dashboard["target"][key] - consumed[key], 1)
+            for key in consumed
+        }
+
+    from .db.models import HealthMetric
+    health_metrics = (
+        db.query(HealthMetric)
+        .filter(HealthMetric.user_id == payload.user_id)
+        .order_by(HealthMetric.recorded_at.desc())
+        .limit(30)
+        .all()
+    )
+    app_data = {
+        "dashboard": dashboard,
+        "meal_history": [
+            {
+                "logged_at": meal.logged_at,
+                "meal_type": meal.meal_type,
+                "source": meal.source.value,
+                "items": [
+                    {"food": item.food_label, "grams": item.est_grams, "calories": item.calories, "protein_g": item.protein_g, "carbs_g": item.carbs_g, "fat_g": item.fat_g}
+                    for item in meal.items
+                ],
+            }
+            for meal in recent_meals
+        ],
+        "health_metrics": [
+            {"recorded_at": metric.recorded_at, "type": metric.metric_type.value, "value": metric.value, "unit": metric.unit}
+            for metric in health_metrics
+        ],
+    }
 
     try:
-        return answer_chat(payload, meal_items=meal_rows, user_profile=user_profile_ctx)
+        return answer_chat(payload, meal_items=meal_rows, user_profile=user_profile_ctx, app_data=app_data)
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:

@@ -281,11 +281,18 @@ export const api = {
   chat: {
     async send(userId, message) {
       if (DEMO_MODE) throw new Error('Chat is unavailable in demo mode');
-      const res = await fetchWithAuth(`${BASE_URL}/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, message })
-      });
+      let res;
+      try {
+        res = await fetchWithAuth(`${BASE_URL}/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: userId, message }),
+          signal: AbortSignal.timeout(45000)
+        });
+      } catch (error) {
+        if (error.name === 'TimeoutError') throw new Error('AI Coach took too long to respond. Please try again.');
+        throw error;
+      }
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: 'Chat inference failed' }));
         throw new Error(err.detail || 'Failed to query AI Coach');

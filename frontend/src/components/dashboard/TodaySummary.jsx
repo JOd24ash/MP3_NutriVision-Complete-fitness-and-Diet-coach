@@ -19,10 +19,18 @@ import {
   Activity,
   Sprout,
   ChevronRight,
+  ChevronLeft,
   ArrowRight,
   FileDown
 } from 'lucide-react';
 import { generateWeeklyNutritionReport } from '../../utils/generateWeeklyNutritionReport';
+
+const todayKey = () => new Date().toISOString().slice(0, 10);
+const shiftDateKey = (dateKey, days) => {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day + days));
+  return date.toISOString().slice(0, 10);
+};
 
 // Circular Donut Gauge Component
 const DonutGauge = ({ percent, color, track = '#f3f4f6', size = 52, stroke = 5 }) => {
@@ -71,6 +79,8 @@ export const TodaySummary = () => {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [metricTab, setMetricTab] = useState('calories');
   const [waterMl, setWaterMl] = useState(0);
+  const [weekAnchorDate, setWeekAnchorDate] = useState(todayKey);
+  const isCurrentWeek = weekAnchorDate >= todayKey();
 
   // Re-fetch after a profile save: targets must never remain generic for the
   // currently signed-in user.
@@ -81,9 +91,9 @@ export const TodaySummary = () => {
         .catch(() => {});
       api.fitness.suggestions(user.id).then(setSuggestions).catch(() => setSuggestions([]));
       api.fitness.goals(user.id).then(setGoals).catch(() => setGoals(null));
-      api.fitness.weekly(user.id).then(data => { if (data) setWeeklyData(data); }).catch(() => {});
+      api.fitness.weekly(user.id, weekAnchorDate).then(data => { if (data) setWeeklyData(data); }).catch(() => {});
     }
-  }, [user?.id, user?.age, user?.height, user?.weight, user?.activity_level, user?.health_goal, user?.diet_preference, profileRefreshTrigger]);
+  }, [user?.id, user?.age, user?.height, user?.weight, user?.activity_level, user?.health_goal, user?.diet_preference, profileRefreshTrigger, weekAnchorDate]);
 
   // Dynamic greeting based on time of day
   const hour = new Date().getHours();
@@ -397,42 +407,7 @@ export const TodaySummary = () => {
         </div>
       </div>
 
-      {summary?.target && (
-        <section className="dash-panel" style={{ padding: '18px 20px' }} aria-label="How your nutrition targets were calculated">
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'baseline' }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <h3 style={{ margin: 0, fontSize: '1rem' }}>Your nutrition guide</h3>
-                {summary.target.age_group_label && (
-                  <span style={{
-                    fontSize: '0.72rem',
-                    fontWeight: 700,
-                    padding: '2px 8px',
-                    borderRadius: 6,
-                    background: summary.target.is_minor ? '#ecfdf5' : '#eff6ff',
-                    color: summary.target.is_minor ? '#065f46' : '#1e40af',
-                    border: summary.target.is_minor ? '1px solid #a7f3d0' : '1px solid #bfdbfe'
-                  }}>
-                    {summary.target.age_group_label}
-                  </span>
-                )}
-              </div>
-              <p style={{ margin: '6px 0 0', fontSize: '.78rem', color: '#64748b', maxWidth: 760 }}>{summary.target.explanation}</p>
-            </div>
-            <span style={{ fontSize: '.74rem', color: '#64748b' }}>{summary.target.method}</span>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(150px, 1fr))', gap: 12, marginTop: 16 }}>
-            <div><strong>Carbohydrates — {summary.target.macro_percent_energy?.carbs}% energy</strong><div style={{ fontSize: '.76rem', color: '#64748b', marginTop: 4 }}>Your body's main fuel for daily activity.</div></div>
-            <div><strong>Protein — {summary.target.macro_percent_energy?.protein}% energy</strong><div style={{ fontSize: '.76rem', color: '#64748b', marginTop: 4 }}>Supports growth, repair, and muscle maintenance.</div></div>
-            <div><strong>Fats — {summary.target.macro_percent_energy?.fat}% energy</strong><div style={{ fontSize: '.76rem', color: '#64748b', marginTop: 4 }}>Helps absorb vitamins and supports cells and hormones.</div></div>
-          </div>
-          {summary.target.caution && <p style={{ margin: '14px 0 0', color: '#9a3412', fontSize: '.78rem' }}>{summary.target.caution}</p>}
-          <p style={{ margin: '12px 0 0', color: '#64748b', fontSize: '.75rem' }}>{summary.target.disclaimer}</p>
-          {suggestions.length > 0 && <div style={{ marginTop: 12, fontSize: '.78rem' }}><strong>Suitable foods from the verified catalogue: </strong>{suggestions.map(item => item.display_name).join(', ')}.</div>}
-          <div style={{ marginTop: 8, fontSize: '.73rem' }}>Sources: {summary.target.sources?.map(source => <a key={source.url} href={source.url} target="_blank" rel="noreferrer" style={{ color: '#2563eb', marginRight: 8 }}>{source.title}</a>)}</div>
-          <div style={{ marginTop: 4, fontSize: '.73rem', color: '#64748b' }}>Food data: {summary.food_data_source}</div>
-        </section>
-      )}
+
 
       {/* ── ROW 3: Middle Grid (Meals, Weekly Trend, Quick Actions) ── */}
       <div className="dash-middle-grid">
@@ -573,6 +548,25 @@ export const TodaySummary = () => {
               <span>Weekly Nutrition Trend</span>
             </h4>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <button
+                  onClick={() => setWeekAnchorDate(date => shiftDateKey(date, -7))}
+                  aria-label="Show previous week"
+                  title="Previous week"
+                  style={{ width: 28, height: 28, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 7, border: '1px solid #d1d5db', background: '#fff', color: '#374151', cursor: 'pointer' }}
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <button
+                  onClick={() => setWeekAnchorDate(date => shiftDateKey(date, 7))}
+                  disabled={isCurrentWeek}
+                  aria-label="Show next week"
+                  title={isCurrentWeek ? 'You are viewing the current week' : 'Next week'}
+                  style={{ width: 28, height: 28, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 7, border: '1px solid #d1d5db', background: isCurrentWeek ? '#f3f4f6' : '#fff', color: isCurrentWeek ? '#9ca3af' : '#374151', cursor: isCurrentWeek ? 'not-allowed' : 'pointer' }}
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: '#6b7280' }}>
                 <Calendar size={13} />
                 <span>
@@ -580,6 +574,7 @@ export const TodaySummary = () => {
                     ? `${weeklyData.week_start} to ${weeklyData.week_end}`
                     : `${daysList[0]?.date || 'Recent'} to ${daysList[daysList.length - 1]?.date || 'Today'}`}
                 </span>
+                {isCurrentWeek && <span style={{ color: '#059669', fontWeight: 700 }}>Current week</span>}
               </div>
               <button
                 onClick={handleDownloadWeeklyReport}

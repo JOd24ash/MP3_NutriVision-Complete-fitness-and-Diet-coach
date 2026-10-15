@@ -9,7 +9,7 @@ from typing import List, Optional
 import chromadb
 from chromadb.api import ClientAPI
 
-from .embeddings import LocalSentenceTransformerEmbeddingFunction
+from .embeddings import get_embedding_function
 from .ingest import load_documents
 from .models import RetrievedChunk
 
@@ -23,15 +23,14 @@ DEFAULT_KB_DIR = os.path.join(_BACKEND_ROOT, "knowledge_base", "icmr_guidelines"
 
 _client: Optional[ClientAPI] = None
 
-# Cache the embedding function so the SentenceTransformer model is only
-# loaded once per process, not on every chat request.
-_embedding_fn: Optional[LocalSentenceTransformerEmbeddingFunction] = None
+# Cache the selected embedding function so it is created only once per process.
+_embedding_fn = None
 
 
-def _get_embedding_fn() -> LocalSentenceTransformerEmbeddingFunction:
+def _get_embedding_fn():
     global _embedding_fn
     if _embedding_fn is None:
-        _embedding_fn = LocalSentenceTransformerEmbeddingFunction()
+        _embedding_fn = get_embedding_function()
     return _embedding_fn
 
 
