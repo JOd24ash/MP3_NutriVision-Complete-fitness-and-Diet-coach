@@ -1,13 +1,16 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { api } from '../../api/client';
+import { useDailyNutrition } from '../../hooks/useDailyNutrition';
+import { calculateTargets } from '../../utils/nutritionCalculator';
 import {
   User, Target, ChevronRight, Scale, Activity,
   Droplet, TrendingUp, Clock, Zap, Lightbulb,
-  Plus, Check, Sparkles, HeartPulse
+  Plus, Check, Sparkles, HeartPulse, Flame
 } from 'lucide-react';
 
 export const HealthMetrics = () => {
-  const { showToast, setIsChatOpen, setActiveTab } = useApp();
+  const { user, showToast, setIsChatOpen, setActiveTab } = useApp();
 
   const [timeRange, setTimeRange] = useState('30D');
   const [activeModal, setActiveModal] = useState(null); // 'weight' | 'hydration' | null
@@ -15,97 +18,67 @@ export const HealthMetrics = () => {
   const [hydrationInput, setHydrationInput] = useState('');
 
   // Metrics state
-  const [weight, setWeight] = useState(74.2);
-  const [bodyFat, setBodyFat] = useState(18.5);
-  const [bmi, setBmi] = useState(22.8);
-  const [hydration, setHydration] = useState(2.4);
+  const [metrics, setMetrics] = useState([]);
+  const weightMetrics = useMemo(() => metrics.filter(item => item.metric_type === 'weight').sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at)), [metrics]);
+  const waterMetrics = useMemo(() => metrics.filter(item => item.metric_type === 'water'), [metrics]);
+  const weight = weightMetrics.at(-1)?.value ?? user?.weight_kg ?? null;
+  const bodyFat = null;
+  const bmi = user?.height_cm && weight ? Math.round((weight / ((user.height_cm / 100) ** 2)) * 10) / 10 : null;
+  const hydration = waterMetrics.reduce((sum, item) => sum + item.value, 0) / 1000;
+
+  // Fetch daily nutrition summary for real-time updates
+  const { summary, remaining, percentages } = useDailyNutrition();
+
+  // Calculate BMR, TDEE, and daily targets based on user profile
+  const healthTargets = useMemo(() => {
+    if (!user?.age || !user?.height_cm || !weight) return null;
+    return calculateTargets({
+      age: user.age,
+      sex: user.sex || 'male',
+      height: user.height_cm,
+      weight: weight,
+      activityLevel: user.activity_level || 'moderate',
+      goal: user.goal || 'fitness'
+    });
+  }, [user?.age, user?.sex, user?.height_cm, user?.activity_level, user?.goal, weight]);
+
+  // Extract computed values with fallbacks
+  const bmr = healthTargets?.bmr || summary?.target?.bmr || null;
+  const tdee = healthTargets?.tdee || summary?.target?.tdee || null;
+  const dailyCalorieTarget = healthTargets?.calories || summary?.target?.calories || 2000;
+  const caloriesConsumed = summary?.consumed?.calories || 0;
+  const caloriesRemaining = Math.max(0, dailyCalorieTarget - caloriesConsumed);
+  const caloriePercentage = dailyCalorieTarget > 0 ? Math.round((caloriesConsumed / dailyCalorieTarget) * 100) : 0;
 
   // Weight history data for SVG chart matching screenshot
-  const chartData = [
-    { date: 'Sep 11', val: 77.8 },
-    { date: 'Sep 14', val: 77.2 },
-    { date: 'Sep 17', val: 76.9 },
-    { date: 'Sep 20', val: 76.2 },
-    { date: 'Sep 23', val: 75.8 },
-    { date: 'Sep 26', val: 75.1 },
-    { date: 'Sep 29', val: 74.8 },
-    { date: 'Oct 02', val: 74.6 },
-    { date: 'Oct 05', val: 74.5 },
-    { date: 'Oct 06', val: 74.4 },
-    { date: 'Oct 08', val: 74.3 },
-    { date: 'Oct 10', val: 74.2 },
-  ];
+  const chartData = weightMetrics.map(item => ({ date: new Date(item.recorded_at).toLocaleDateString([], { month: 'short', day: 'numeric' }), val: item.value }));
+  const recentMeasurements = metrics.slice().sort((a, b) => new Date(b.recorded_at) - new Date(a.recorded_at)).slice(0, 4).map(item => ({ id: item.id, type: item.metric_type.replace('_', ' '), val: `${item.value} ${item.unit}`, time: new Date(item.recorded_at).toLocaleString(), icon: item.metric_type === 'weight' ? Scale : Droplet, iconColor: '#059669', bgColor: '#ecfdf5' }));
 
-  // Recent measurements matching screenshot
-  const [recentMeasurements, setRecentMeasurements] = useState([
-    {
-      id: 'm-1',
-      type: 'Weight',
-      val: '74.2 kg',
-      time: '10 Oct 2026, 08:00 AM',
-      icon: Scale,
-      iconColor: '#059669',
-      bgColor: '#ecfdf5'
-    },
-    {
-      id: 'm-2',
-      type: 'Body Fat',
-      val: '18.5 %',
-      time: '10 Oct 2026, 08:00 AM',
-      icon: Activity,
-      iconColor: '#7c3aed',
-      bgColor: '#faf5ff'
-    },
-    {
-      id: 'm-3',
-      type: 'Blood Pressure',
-      val: '122/80 mmHg',
-      time: '09 Oct 2026, 07:45 PM',
-      icon: HeartPulse,
-      iconColor: '#dc2626',
-      bgColor: '#fef2f2'
-    },
-    {
-      id: 'm-4',
-      type: 'Resting Heart Rate',
-      val: '68 bpm',
-      time: '09 Oct 2026, 07:30 AM',
-      icon: Activity,
-      iconColor: '#d97706',
-      bgColor: '#fffbeb'
-    }
-  ]);
+  useEffect(() => {
+    if (!user?.id) return;
+    api.metrics.list(user.id).then(setMetrics).catch(error => showToast?.(error.message || 'Could not load health metrics.', 'danger'));
+  }, [user?.id]);
 
-  const handleLogWeight = (e) => {
+  const handleLogWeight = async (e) => {
     e.preventDefault();
     if (!weightInput) return;
     const val = parseFloat(weightInput);
     if (!isNaN(val)) {
-      setWeight(val);
-      setRecentMeasurements(prev => [
-        {
-          id: 'm-' + Date.now(),
-          type: 'Weight',
-          val: `${val} kg`,
-          time: 'Today, Just now',
-          icon: Scale,
-          iconColor: '#059669',
-          bgColor: '#ecfdf5'
-        },
-        ...prev.slice(0, 3)
-      ]);
+      const metric = await api.metrics.add(user.id, { metric_type: 'weight', value: val, unit: 'kg' });
+      setMetrics(prev => [metric, ...prev]);
       showToast(`Logged weight: ${val} kg`, 'success');
       setWeightInput('');
       setActiveModal(null);
     }
   };
 
-  const handleLogHydration = (e) => {
+  const handleLogHydration = async (e) => {
     e.preventDefault();
     if (!hydrationInput) return;
     const val = parseFloat(hydrationInput);
     if (!isNaN(val)) {
-      setHydration(prev => Math.min(5.0, Math.round((prev + val) * 10) / 10));
+      const metric = await api.metrics.add(user.id, { metric_type: 'water', value: val * 1000, unit: 'ml' });
+      setMetrics(prev => [metric, ...prev]);
       showToast(`Added ${val} L of water!`, 'success');
       setHydrationInput('');
       setActiveModal(null);
@@ -121,13 +94,41 @@ export const HealthMetrics = () => {
   const maxVal = 80;
 
   const points = chartData.map((d, i) => {
-    const x = paddingX + (i / (chartData.length - 1)) * (chartWidth - paddingX * 2);
+    const x = paddingX + (i / Math.max(1, chartData.length - 1)) * (chartWidth - paddingX * 2);
     const y = chartHeight - paddingY - ((d.val - minVal) / (maxVal - minVal)) * (chartHeight - paddingY * 2);
     return { x, y, val: d.val, date: d.date };
   });
 
   const pathD = points.reduce((acc, p, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`, '');
-  const areaD = `${pathD} L ${points[points.length - 1].x} ${chartHeight - paddingY} L ${points[0].x} ${chartHeight - paddingY} Z`;
+  const areaD = points.length ? `${pathD} L ${points[points.length - 1].x} ${chartHeight - paddingY} L ${points[0].x} ${chartHeight - paddingY} Z` : '';
+
+  // Detect goal/weight conflict
+  const hasGoalConflict = useMemo(() => {
+    if (!user?.goal || !weight || !user?.target_weight_kg) return null;
+    
+    const currentWeight = weight;
+    const targetWeight = user.target_weight_kg;
+    const goal = user.goal?.toLowerCase();
+    
+    // Check for contradictions
+    if (goal === 'gain' && targetWeight < currentWeight) {
+      return {
+        type: 'gain_conflict',
+        message: `Your goal is muscle gain, but target weight (${targetWeight}kg) is less than current weight (${currentWeight.toFixed(1)}kg)`,
+        suggestion: `For muscle gain, your target should be higher. Try setting it to ${(currentWeight + 5).toFixed(1)}kg or more.`
+      };
+    }
+    
+    if (goal === 'lose' && targetWeight > currentWeight) {
+      return {
+        type: 'lose_conflict',
+        message: `Your goal is weight loss, but target weight (${targetWeight}kg) is more than current weight (${currentWeight.toFixed(1)}kg)`,
+        suggestion: `For weight loss, your target should be lower. Try setting it to ${(currentWeight - 5).toFixed(1)}kg or less.`
+      };
+    }
+    
+    return null;
+  }, [user?.goal, user?.target_weight_kg, weight]);
 
   return (
     <div className="health-metrics-page" style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -219,6 +220,63 @@ export const HealthMetrics = () => {
         </div>
       </div>
 
+      {/* ── Goal/Weight Conflict Warning ───────────────────── */}
+      {hasGoalConflict && (
+        <div style={{
+          background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+          borderRadius: 16,
+          border: '2px solid #f59e0b',
+          padding: '16px 20px',
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 14,
+          boxShadow: '0 4px 12px rgba(245, 158, 11, 0.2)'
+        }}>
+          <div style={{
+            width: 40,
+            height: 40,
+            borderRadius: '50%',
+            background: '#fff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0
+          }}>
+            <span style={{ fontSize: '24px' }}>⚠️</span>
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#78350f', marginBottom: 6 }}>
+              Goal & Target Weight Conflict Detected
+            </div>
+            <div style={{ fontSize: '0.85rem', color: '#92400e', marginBottom: 8, lineHeight: 1.5 }}>
+              {hasGoalConflict.message}
+            </div>
+            <div style={{ fontSize: '0.82rem', color: '#78350f', fontWeight: 600, marginBottom: 10 }}>
+              💡 {hasGoalConflict.suggestion}
+            </div>
+            <button
+              onClick={() => showToast('Please update your profile from the dashboard or settings', 'info')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: 8,
+                background: '#f59e0b',
+                color: '#fff',
+                border: 'none',
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = '#d97706'}
+              onMouseLeave={e => e.currentTarget.style.background = '#f59e0b'}
+            >
+              Update My Goals →
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── 2. Top 4 Metric Cards Row ────────────────────────── */}
       <div className="health-metrics-cards" style={{
         display: 'grid',
@@ -251,7 +309,7 @@ export const HealthMetrics = () => {
 
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
             <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#111827' }}>
-              {weight} <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#6b7280' }}>kg</span>
+              {weight ? weight.toFixed(1) : '--'} <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#6b7280' }}>kg</span>
             </div>
             {/* Mini wavy green sparkline */}
             <svg width="60" height="22" viewBox="0 0 60 22" fill="none">
@@ -259,11 +317,20 @@ export const HealthMetrics = () => {
             </svg>
           </div>
 
-          <div style={{ fontSize: '0.74rem', color: '#059669', fontWeight: 600, marginTop: 4 }}>
-            ↓ -0.3 kg this week
-          </div>
+          {weightMetrics.length >= 2 && (
+            <div style={{ fontSize: '0.74rem', color: weightMetrics[weightMetrics.length - 1].value < weightMetrics[weightMetrics.length - 2].value ? '#059669' : '#dc2626', fontWeight: 600, marginTop: 4 }}>
+              {weightMetrics[weightMetrics.length - 1].value < weightMetrics[weightMetrics.length - 2].value ? '↓' : '↑'} {Math.abs(weightMetrics[weightMetrics.length - 1].value - weightMetrics[weightMetrics.length - 2].value).toFixed(1)} kg change
+            </div>
+          )}
           <div style={{ fontSize: '0.72rem', color: '#9ca3af', marginTop: 4 }}>
-            Target: 70 kg
+            {user?.goal === 'lose' && user?.target_weight_kg ? 
+              `Target: ${user.target_weight_kg} kg` : 
+              user?.goal === 'gain' && weight ? 
+                `Target: ${(weight + 5).toFixed(1)} kg` :
+                user?.goal === 'maintain' && weight ?
+                  `Target: ${weight.toFixed(1)} kg` :
+                  'Goal: ' + (user?.goal === 'lose' ? 'Lose weight' : user?.goal === 'gain' ? 'Gain muscle' : 'Maintain')
+            }
           </div>
         </div>
 
@@ -336,20 +403,22 @@ export const HealthMetrics = () => {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
               <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#111827' }}>
-                {bmi}
+                {bmi || '--'}
               </div>
-              <span style={{
-                display: 'inline-block',
-                marginTop: 3,
-                padding: '2px 8px',
-                borderRadius: 12,
-                background: '#dcfce7',
-                color: '#15803d',
-                fontSize: '0.7rem',
-                fontWeight: 700
-              }}>
-                Normal
-              </span>
+              {bmi && (
+                <span style={{
+                  display: 'inline-block',
+                  marginTop: 3,
+                  padding: '2px 8px',
+                  borderRadius: 12,
+                  background: bmi >= 18.5 && bmi <= 24.9 ? '#dcfce7' : '#fef3c7',
+                  color: bmi >= 18.5 && bmi <= 24.9 ? '#15803d' : '#92400e',
+                  fontSize: '0.7rem',
+                  fontWeight: 700
+                }}>
+                  {bmi < 18.5 ? 'Underweight' : bmi <= 24.9 ? 'Normal' : bmi <= 29.9 ? 'Overweight' : 'Obese'}
+                </span>
+              )}
             </div>
             {/* Mini wavy blue sparkline */}
             <svg width="60" height="22" viewBox="0 0 60 22" fill="none">
@@ -410,6 +479,134 @@ export const HealthMetrics = () => {
 
           <div style={{ fontSize: '0.72rem', color: '#9ca3af', marginTop: 6 }}>
             Target: 3.0 L
+          </div>
+        </div>
+      </div>
+
+      {/* ── 2.5. Additional Health Metrics: BMR, TDEE, Daily Target ─ */}
+      <div className="health-metrics-cards-extended" style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, 1fr)',
+        gap: 16
+      }}>
+        {/* Card: BMR */}
+        <div style={{
+          background: '#fff',
+          borderRadius: 16,
+          border: '1px solid #e5e7eb',
+          padding: '18px 20px',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <div style={{
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              background: '#fef3c7',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#d97706'
+            }}>
+              <Flame size={16} strokeWidth={2.4} />
+            </div>
+            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#4b5563' }}>BMR</span>
+          </div>
+
+          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#111827' }}>
+            {bmr || '--'} <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#6b7280' }}>kcal</span>
+          </div>
+
+          <div style={{ fontSize: '0.72rem', color: '#9ca3af', marginTop: 8 }}>
+            Basal Metabolic Rate
+          </div>
+          <div style={{ fontSize: '0.72rem', color: '#6b7280', marginTop: 2 }}>
+            Calories burned at rest
+          </div>
+        </div>
+
+        {/* Card: TDEE */}
+        <div style={{
+          background: '#fff',
+          borderRadius: 16,
+          border: '1px solid #e5e7eb',
+          padding: '18px 20px',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <div style={{
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              background: '#fae8ff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#a855f7'
+            }}>
+              <Zap size={16} strokeWidth={2.4} />
+            </div>
+            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#4b5563' }}>TDEE</span>
+          </div>
+
+          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#111827' }}>
+            {tdee || '--'} <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#6b7280' }}>kcal</span>
+          </div>
+
+          <div style={{ fontSize: '0.72rem', color: '#9ca3af', marginTop: 8 }}>
+            Total Daily Energy Expenditure
+          </div>
+          <div style={{ fontSize: '0.72rem', color: '#6b7280', marginTop: 2 }}>
+            Activity: {user?.activity_level || 'moderate'}
+          </div>
+        </div>
+
+        {/* Card: Daily Calorie Target */}
+        <div style={{
+          background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+          borderRadius: 16,
+          border: '1px solid #fbbf24',
+          padding: '18px 20px',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <div style={{
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              background: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#f59e0b'
+            }}>
+              <Target size={16} strokeWidth={2.4} />
+            </div>
+            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#78350f' }}>Daily Target</span>
+          </div>
+
+          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#78350f' }}>
+            {dailyCalorieTarget} <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>kcal</span>
+          </div>
+
+          {/* Progress bar */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+            <div style={{ flex: 1, height: 8, borderRadius: 6, background: '#fff', overflow: 'hidden' }}>
+              <div style={{
+                width: `${Math.min(100, caloriePercentage)}%`,
+                height: '100%',
+                borderRadius: 6,
+                background: caloriePercentage > 100 ? '#dc2626' : '#f59e0b',
+                transition: 'width 0.3s ease'
+              }} />
+            </div>
+            <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#78350f' }}>
+              {caloriePercentage}%
+            </span>
+          </div>
+
+          <div style={{ fontSize: '0.72rem', color: '#78350f', marginTop: 6 }}>
+            {caloriesConsumed} / {dailyCalorieTarget} kcal
           </div>
         </div>
       </div>

@@ -2,6 +2,10 @@
 
 AI-driven nutrition assistant for multi-item Indian meals — with food detection, calorie tracking, voice logging, RAG-powered diet coaching, and health guardrails.
 
+## Personal nutrition guidance
+
+The profile-based nutrition dashboard uses Mifflin-St Jeor for adults and WHO/FAO/UNU Schofield resting-energy estimates for ages 3–17, then applies activity factors and age-appropriate AMDR macro ranges. It does not prescribe calorie deficits or surpluses for minors. Food values are sourced from the ICMR-NIN Indian Food Composition Tables 2017 (see `backend/data/foods.json`); mixed dishes remain labelled estimates. NutriVision provides general guidance, not professional medical advice.
+
 ---
 
 ## 🏗️ Architecture
@@ -100,8 +104,8 @@ uvicorn app.main:app --reload
 | `YOLO_IMAGE_SIZE` | YOLO inference image size (default: `640`) |
 | `YOLO_DEVICE` | Optional Ultralytics device, e.g. `cpu`, `0`, or `cuda:0` |
 | `WHISPER_MODEL` | Whisper model size e.g. `base`, `small` (optional) |
-| `ANTHROPIC_API_KEY` | Anthropic API key for RAG/chat features |
-| `NUTRIVISION_LLM_MODEL` | LLM model name (default: `claude-sonnet-4-5`) |
+| `GROQ_API_KEY` | Groq API key for RAG/chat features |
+| `NUTRIVISION_LLM_MODEL` | Groq model name (default: `llama-3.3-70b-versatile`) |
 
 > Photos are processed locally by a mask-capable YOLO26 model. `yolo26n.pt` is detection-only and is rejected because portion estimation needs masks. The official `yolo26n-seg.pt` knows COCO classes only; fine-tune it on annotated Indian-food polygons before using the result for nutrition. Set `USE_MOCK_DETECTOR=true` only for explicit demo mode.
 

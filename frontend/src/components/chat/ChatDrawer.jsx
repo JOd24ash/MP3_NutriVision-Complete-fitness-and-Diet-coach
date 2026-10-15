@@ -68,7 +68,9 @@ export const ChatDrawer = () => {
         ...prev,
         {
           role: 'assistant',
-          text: "I encountered an error retrieving nutrition guidelines. Please try again shortly.",
+          text: err?.message && !err.message.includes('fetch')
+            ? `⚠️ ${err.message}`
+            : "I encountered an error connecting to the AI service. Please check the backend is running and try again.",
           sources: [],
           guardrail_flags: []
         }

@@ -1,9 +1,4 @@
-import { 
-  SAMPLE_PLATES, 
-  MOCK_USER_PROFILE, 
-  MOCK_HISTORY_MEALS, 
-  MOCK_HEALTH_METRICS
-} from './mockData';
+import { MOCK_USER_PROFILE } from './mockData';
 
 const BASE_URL = '/api/v1';
 const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
@@ -170,9 +165,16 @@ export const api = {
   },
 
   fitness: {
+    async updateGoals(userId, payload) { const res = await fetchWithAuth(`${BASE_URL}/users/${userId}/goals`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); if (!res.ok) { const err = await res.json().catch(() => ({ detail: 'Could not save nutrition profile' })); throw new Error(err.detail || 'Could not save nutrition profile'); } return await res.json(); },
     async goals(userId) { const res = await fetchWithAuth(`${BASE_URL}/users/${userId}/goals`); if (!res.ok) throw new Error('Set your goals to view progress'); return await res.json(); },
     async summary(userId) { const date = new Date().toISOString().slice(0, 10); const res = await fetchWithAuth(`${BASE_URL}/users/${userId}/daily-summary?date=${date}`); if (!res.ok) throw new Error('Set your goals to view progress'); return await res.json(); },
     async suggestions(userId) { const res = await fetchWithAuth(`${BASE_URL}/users/${userId}/meal-suggestions`); if (!res.ok) throw new Error('Suggestions unavailable'); return await res.json(); },
+    async weekly(userId, anchorDate) {
+      const param = anchorDate ? `?anchor_date=${anchorDate}` : '';
+      const res = await fetchWithAuth(`${BASE_URL}/users/${userId}/weekly-summary${param}`);
+      if (!res.ok) throw new Error('Weekly summary unavailable');
+      return await res.json();
+    },
   },
 
   // Meals (Photo / Voice / Edit / Confirm)
@@ -184,20 +186,7 @@ export const api = {
     },
     async logPhoto(formData) {
       if (DEMO_MODE) {
-        // Simulate realistic computer-vision delay
-        await new Promise(r => setTimeout(r, 900));
-        const plate = SAMPLE_PLATES[0];
-        return {
-          meal_log_id: 'meal-' + Math.random().toString(36).substring(2, 9),
-          items: plate.items,
-          total: {
-            calories: plate.items.reduce((s, i) => s + (i.calories || 0), 0),
-            protein_g: plate.items.reduce((s, i) => s + (i.protein_g || 0), 0),
-            carbs_g: plate.items.reduce((s, i) => s + (i.carbs_g || 0), 0),
-            fat_g: plate.items.reduce((s, i) => s + (i.fat_g || 0), 0),
-          },
-          needs_manual_review: false
-        };
+        throw new Error('Photo analysis requires the NutriVision backend.');
       }
       const res = await fetchWithAuth(`${BASE_URL}/meals/photo`, {
         method: 'POST',
@@ -262,9 +251,6 @@ export const api = {
     },
 
     async listHistory(userId) {
-      if (DEMO_MODE) {
-        return MOCK_HISTORY_MEALS;
-      }
       const res = await fetchWithAuth(`${BASE_URL}/users/${userId}/meals`);
       if (!res.ok) throw new Error('Failed to load meal history');
       return await res.json();
@@ -274,9 +260,6 @@ export const api = {
   // Health Metrics
   metrics: {
     async list(userId, type = null) {
-      if (DEMO_MODE) {
-        return type ? MOCK_HEALTH_METRICS.filter(m => m.metric_type === type) : MOCK_HEALTH_METRICS;
-      }
       const url = type ? `${BASE_URL}/users/${userId}/health-metrics?type=${type}` : `${BASE_URL}/users/${userId}/health-metrics`;
       const res = await fetchWithAuth(url);
       if (!res.ok) throw new Error('Failed to load health metrics');
@@ -284,17 +267,6 @@ export const api = {
     },
 
     async add(userId, payload) {
-      if (DEMO_MODE) {
-        const item = {
-          id: 'm-' + Date.now(),
-          metric_type: payload.metric_type,
-          value: payload.value,
-          unit: payload.unit,
-          recorded_at: new Date().toISOString()
-        };
-        MOCK_HEALTH_METRICS.unshift(item);
-        return item;
-      }
       const res = await fetchWithAuth(`${BASE_URL}/users/${userId}/health-metrics`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -309,11 +281,18 @@ export const api = {
   chat: {
     async send(userId, message) {
       if (DEMO_MODE) throw new Error('Chat is unavailable in demo mode');
-      const res = await fetchWithAuth(`${BASE_URL}/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, message })
-      });
+      let res;
+      try {
+        res = await fetchWithAuth(`${BASE_URL}/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: userId, message }),
+          signal: AbortSignal.timeout(45000)
+        });
+      } catch (error) {
+        if (error.name === 'TimeoutError') throw new Error('AI Coach took too long to respond. Please try again.');
+        throw error;
+      }
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: 'Chat inference failed' }));
         throw new Error(err.detail || 'Failed to query AI Coach');

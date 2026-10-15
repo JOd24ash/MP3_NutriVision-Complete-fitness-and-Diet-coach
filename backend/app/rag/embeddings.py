@@ -21,6 +21,8 @@ _TOKEN_RE = re.compile(r"[a-z0-9]+")
 
 
 class HashingEmbeddingFunction(EmbeddingFunction):
+    # Keep this stable: Chroma stores a collection's vector dimension on its
+    # first insert, and existing local installations were created at 256.
     def __init__(self, dim: int = 256):
         self.dim = dim
 
@@ -44,3 +46,14 @@ class LocalSentenceTransformerEmbeddingFunction(EmbeddingFunction):
 
     def __call__(self, input):
         return self.model.encode(list(input), normalize_embeddings=True).tolist()
+
+
+def get_embedding_function() -> EmbeddingFunction:
+    """Use the local hash embedder unless a model was explicitly enabled.
+
+    Loading a SentenceTransformer on the first chat request can download a
+    model and leave the coach waiting indefinitely on offline deployments.
+    """
+    if os.environ.get("RAG_EMBEDDING_BACKEND", "hashing").lower() == "sentence_transformer":
+        return LocalSentenceTransformerEmbeddingFunction()
+    return HashingEmbeddingFunction()

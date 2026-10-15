@@ -115,53 +115,55 @@ export const PhotoScanner = () => {
   const totalCarbs    = detectedItems.reduce((acc, item) => acc + (item.carbs    || 0), 0);
   const totalFat      = detectedItems.reduce((acc, item) => acc + (item.fat      || 0), 0);
 
-  // Recent scans dataset
-  const recentScans = [
-    {
-      id: 'scan-1',
-      title: 'Oats Bowl',
-      date: '10 Oct 2026, 09:15 AM',
-      calories: 320,
-      protein: 12,
-      carbs: 54,
-      fat: 7,
-      image: 'https://images.unsplash.com/photo-1517673132405-a56a62b18caf?w=150&auto=format&fit=crop&q=80',
-      emoji: '🥣'
-    },
-    {
-      id: 'scan-2',
-      title: 'Sandwich',
-      date: '9 Oct 2026, 07:42 PM',
-      calories: 290,
-      protein: 10,
-      carbs: 42,
-      fat: 8,
-      image: 'https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=150&auto=format&fit=crop&q=80',
-      emoji: '🥪'
-    },
-    {
-      id: 'scan-3',
-      title: 'Lunch Bowl',
-      date: '9 Oct 2026, 01:20 PM',
-      calories: 510,
-      protein: 28,
-      carbs: 68,
-      fat: 16,
-      image: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=150&auto=format&fit=crop&q=80',
-      emoji: '🥗'
-    },
-    {
-      id: 'scan-4',
-      title: 'Fruit Bowl',
-      date: '8 Oct 2026, 11:05 AM',
-      calories: 180,
-      protein: 4,
-      carbs: 42,
-      fat: 1,
-      image: 'https://images.unsplash.com/photo-1519996529931-28324d5a630e?w=150&auto=format&fit=crop&q=80',
-      emoji: '🍓'
-    }
-  ];
+  // Fetch recent scans from actual meal history
+  const [recentScans, setRecentScans] = React.useState([]);
+  
+  React.useEffect(() => {
+    if (!user?.id) return;
+    
+    // Fetch recent meal scans
+    api.meals.listHistory(user.id)
+      .then(meals => {
+        // Get the 4 most recent confirmed meals
+        const recent = meals
+          .filter(meal => meal.status === 'confirmed')
+          .sort((a, b) => new Date(b.logged_at) - new Date(a.logged_at))
+          .slice(0, 4)
+          .map(meal => ({
+            id: meal.meal_log_id,
+            title: meal.meal_type || 'Meal',
+            date: new Date(meal.logged_at).toLocaleString('en-US', { 
+              day: 'numeric', 
+              month: 'short', 
+              year: 'numeric', 
+              hour: '2-digit', 
+              minute: '2-digit' 
+            }),
+            calories: Math.round(meal.total_calories || 0),
+            protein: Math.round(meal.total_protein_g || 0),
+            carbs: Math.round(meal.total_carbs_g || 0),
+            fat: Math.round(meal.total_fat_g || 0),
+            image: meal.image_url || null,
+            emoji: getMealEmoji(meal.meal_type)
+          }));
+        setRecentScans(recent);
+      })
+      .catch(err => {
+        console.error('Failed to load recent scans:', err);
+        setRecentScans([]);
+      });
+  }, [user?.id]);
+
+  // Helper function to get emoji based on meal type
+  const getMealEmoji = (mealType) => {
+    if (!mealType) return '🍽️';
+    const type = mealType.toLowerCase();
+    if (type.includes('breakfast')) return '🍳';
+    if (type.includes('lunch')) return '🥗';
+    if (type.includes('dinner')) return '🍛';
+    if (type.includes('snack')) return '🍪';
+    return '🍽️';
+  };
 
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -199,7 +201,9 @@ export const PhotoScanner = () => {
       if (meal.items && meal.items.length > 0) {
         setShowWeightEntry(true);
         showToast?.(
-          `Found ${items.length} item${items.length !== 1 ? 's' : ''}! Please enter the weight (in grams) for each item.`,
+          meal.needs_manual_review
+            ? `Found ${items.length} item${items.length !== 1 ? 's' : ''}, but identification or portion estimates need review. Please confirm each food and weight.`
+            : `Found ${items.length} item${items.length !== 1 ? 's' : ''}! Please enter the weight (in grams) for each item.`,
           'info'
         );
       } else {
@@ -1538,7 +1542,23 @@ export const PhotoScanner = () => {
 
         {/* 4 Recent Scans in a row */}
         <div className="scanner-recent-grid">
-          {recentScans.map((scan) => (
+          {recentScans.length === 0 ? (
+            <div style={{
+              gridColumn: '1 / -1',
+              textAlign: 'center',
+              padding: '40px 20px',
+              color: '#9ca3af'
+            }}>
+              <div style={{ fontSize: '48px', marginBottom: '12px' }}>📷</div>
+              <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#6b7280', marginBottom: '6px' }}>
+                No recent scans yet
+              </div>
+              <div style={{ fontSize: '0.85rem', color: '#9ca3af' }}>
+                Scan your first meal using the camera above to get started
+              </div>
+            </div>
+          ) : (
+            recentScans.map((scan) => (
             <div
               key={scan.id}
               className="scanner-recent-card"
@@ -1586,7 +1606,8 @@ export const PhotoScanner = () => {
 
               <ChevronRight size={16} style={{ color: '#9ca3af', flexShrink: 0 }} />
             </div>
-          ))}
+          ))
+          )}
         </div>
       </div>
 

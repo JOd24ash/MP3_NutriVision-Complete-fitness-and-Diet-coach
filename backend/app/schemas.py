@@ -110,6 +110,9 @@ class MealResponse(BaseModel):
     transcript: Optional[str] = None
     needs_manual_review: bool = False
     confirmed: bool = False
+    image_url: Optional[str] = None
+    meal_type: Optional[str] = None
+    source: Optional[str] = None
 
 
 class MealLogSummary(BaseModel):
@@ -119,6 +122,8 @@ class MealLogSummary(BaseModel):
     items: List[MealItemOut]
     total: MealTotalOut
     confirmed: bool = True
+    image_url: Optional[str] = None
+    meal_type: Optional[str] = None
 
 
 class HealthMetricIn(BaseModel):
@@ -135,8 +140,13 @@ class HealthMetricOut(BaseModel):
     recorded_at: datetime
 
 class GoalIn(BaseModel):
-    age: float = Field(ge=18, le=120); sex: str; height_cm: float = Field(gt=0); weight_kg: float = Field(gt=0)
-    activity_level: str; goal: str; diet_preference: str
+    age: float = Field(ge=3, le=120)
+    sex: str
+    height_cm: float = Field(ge=80, le=250)
+    weight_kg: float = Field(ge=15, le=350)
+    activity_level: str
+    goal: str
+    diet_preference: str
 
 class ActivityIn(BaseModel):
     activity_type: str

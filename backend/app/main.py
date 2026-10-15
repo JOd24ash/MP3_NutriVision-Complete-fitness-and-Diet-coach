@@ -9,7 +9,8 @@ Run with: uvicorn app.main:app --reload   (see SETUP.md)
 """
 
 import os
-from datetime import date, datetime, time, timedelta
+import uuid
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional
 
@@ -60,6 +61,7 @@ from .speech.transcriber import get_transcriber
 from .vision.detector import get_detector, vision_status
 
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 app = FastAPI(title="NutriVision API", version="0.1.0")
 
@@ -74,6 +76,9 @@ app.add_middleware(
 
 API_PREFIX = "/api/v1"
 MAX_PHOTO_BYTES = 10 * 1024 * 1024
+UPLOADS_DIR = Path(__file__).resolve().parent.parent / "uploads"
+UPLOADS_DIR.mkdir(exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{API_PREFIX}/auth/login")
 
 
@@ -132,8 +137,8 @@ def compute_total(rows: List[MealItemRow]) -> MealTotalOut:
     )
 
 
-def persist_meal(db: Session, user_id: str, source: MealSource, rows: List[MealItemRow]) -> MealLog:
-    meal_log = MealLog(user_id=user_id, source=source)
+def persist_meal(db: Session, user_id: str, source: MealSource, rows: List[MealItemRow], raw_image_url: Optional[str] = None) -> MealLog:
+    meal_log = MealLog(user_id=user_id, source=source, raw_image_url=raw_image_url)
     db.add(meal_log)
     db.flush()  # assigns meal_log.id
 
@@ -190,6 +195,9 @@ def meal_log_to_response(meal_log: MealLog, transcript: Optional[str] = None) ->
         transcript=transcript,
         needs_manual_review=needs_review,
         confirmed=is_confirmed,
+        image_url=meal_log.raw_image_url,
+        meal_type=meal_log.meal_type,
+        source=meal_log.source.value,
     )
 
 
@@ -321,8 +329,17 @@ async def log_meal_photo(
     profile = db.query(MedicalProfile).filter(MedicalProfile.user_id == user_id).first()
     rows = evaluate_meal(nutrition_results, profile_to_schema(profile))
 
-    meal_log = persist_meal(db, user_id, MealSource.photo, rows)
-    return meal_log_to_response(meal_log)
+    suffix = ".jpg" if image.content_type == "image/jpeg" else ".png" if image.content_type == "image/png" else ".webp"
+    image_name = f"{uuid.uuid4()}{suffix}"
+    (UPLOADS_DIR / image_name).write_bytes(image_bytes)
+    meal_log = persist_meal(db, user_id, MealSource.photo, rows, raw_image_url=f"/uploads/{image_name}")
+    response = meal_log_to_response(meal_log)
+    response.needs_manual_review = (
+        reference_object_px is None or reference_object_real_cm is None
+        or any((item.confidence or 0) < 0.8 for item in meal_log.items)
+        or response.needs_manual_review
+    )
+    return response
 
 
 @app.get(f"{API_PREFIX}/vision/status")
@@ -489,6 +506,8 @@ def list_meals(
                 items=response.items,
                 total=response.total,
                 confirmed=(meal_log.confirmed == "true"),
+                image_url=meal_log.raw_image_url,
+                meal_type=meal_log.meal_type,
             )
         )
     return summaries
@@ -552,11 +571,15 @@ def put_goals(user_id: str, payload: GoalIn, db: Session = Depends(get_db), curr
     require_self(user_id, current_user)
     from .db.models import FitnessGoal
     from .fitness.calculator import ACTIVITY, targets
-    if payload.sex not in {"male", "female"} or payload.activity_level not in ACTIVITY or payload.goal not in {"lose", "maintain", "gain"} or payload.diet_preference not in {"veg", "non_veg", "eggetarian", "vegan"}: raise HTTPException(422, "Invalid goal profile")
+    if payload.sex not in {"male", "female"} or payload.activity_level not in ACTIVITY or payload.goal not in {"lose", "maintain", "gain", "fitness", "general_fitness"} or payload.diet_preference not in {"veg", "non_veg", "eggetarian", "vegan"}: raise HTTPException(422, "Invalid goal profile")
+    try:
+        calculated = targets(**payload.model_dump(exclude={"diet_preference"}))
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
     goal = db.get(FitnessGoal, user_id) or FitnessGoal(user_id=user_id)
     for key, value in payload.model_dump().items(): setattr(goal, key, value)
     db.add(goal); db.commit()
-    return {**payload.model_dump(), **targets(**payload.model_dump(exclude={"diet_preference"}))}
+    return {**payload.model_dump(), **calculated}
 
 @app.get(f"{API_PREFIX}/users/{{user_id}}/goals")
 def get_goals(user_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -603,7 +626,7 @@ def daily_summary(user_id: str, date: date, db: Session = Depends(get_db), curre
     from .fitness.activities import calories_burned
     from .fitness.calculator import targets
     goal = db.get(FitnessGoal, user_id)
-    start, end = datetime.combine(date, time.min), datetime.combine(date + timedelta(days=1), time.min)
+    start, end = datetime.combine(date, time.min, tzinfo=timezone.utc), datetime.combine(date + timedelta(days=1), time.min, tzinfo=timezone.utc)
     meals = db.query(MealLog).filter(MealLog.user_id == user_id, MealLog.logged_at >= start, MealLog.logged_at < end, MealLog.confirmed == "true").all()
     consumed = {"calories": sum(item.calories or 0 for meal in meals for item in meal.items), "protein_g": sum(item.protein_g or 0 for meal in meals for item in meal.items), "carbs_g": sum(item.carbs_g or 0 for meal in meals for item in meal.items), "fat_g": sum(item.fat_g or 0 for meal in meals for item in meal.items)}
     activities = db.query(ActivityLog).filter(ActivityLog.user_id == user_id, ActivityLog.logged_at >= start, ActivityLog.logged_at < end).all()
@@ -611,9 +634,100 @@ def daily_summary(user_id: str, date: date, db: Session = Depends(get_db), curre
         burned = sum(calories_burned(item.activity_type, item.intensity, item.duration_minutes, goal.weight_kg) for item in activities)
         target = targets(goal.age, goal.sex, goal.height_cm, goal.weight_kg, goal.activity_level, goal.goal)
     else:
-        burned = sum(calories_burned(item.activity_type, item.intensity, item.duration_minutes, 70.0) for item in activities)
-        target = {"calories": 2000, "protein_g": 60.0, "carbs_g": 250.0, "fat_g": 55.0}
-    return {"date": str(date), "target": target, "consumed": {key: round(value, 1) for key, value in consumed.items()}, "burned": burned, "remaining": {"calories": round(target["calories"] + burned - consumed["calories"]), "protein_g": round(target["protein_g"] - consumed["protein_g"], 1), "carbs_g": round(target["carbs_g"] - consumed["carbs_g"], 1), "fat_g": round(target["fat_g"] - consumed["fat_g"], 1)}}
+        raise HTTPException(409, "Complete and save your profile before viewing nutrition targets")
+    from .nutrition.food_data import FOOD_DATA_SOURCE
+    return {
+        "date": str(date),
+        "target": target,
+        "food_data_source": FOOD_DATA_SOURCE,
+        "consumed": {key: round(value, 1) for key, value in consumed.items()},
+        "burned": burned,
+        "remaining": {
+            "calories": round(target["calories"] + burned - consumed["calories"]),
+            "protein_g": round(target["protein_g"] - consumed["protein_g"], 1),
+            "carbs_g": round(target["carbs_g"] - consumed["carbs_g"], 1),
+            "fat_g": round(target["fat_g"] - consumed["fat_g"], 1)
+        }
+    }
+
+
+@app.get(f"{API_PREFIX}/users/{{user_id}}/weekly-summary")
+def weekly_summary(
+    user_id: str,
+    anchor_date: Optional[date] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Return 7-day nutrition consumed vs target data.
+
+    The week window is the 7 days ending on *anchor_date* (inclusive).
+    Defaults to today so the most recent 7 days are always shown.
+    """
+    require_self(user_id, current_user)
+    from .db.models import FitnessGoal
+    from .fitness.calculator import targets
+    from .nutrition.food_data import FOOD_DATA_SOURCE
+
+    goal = db.get(FitnessGoal, user_id)
+    if not goal:
+        raise HTTPException(409, "Complete and save your profile before viewing nutrition targets")
+
+    target = targets(goal.age, goal.sex, goal.height_cm, goal.weight_kg, goal.activity_level, goal.goal)
+
+    end_day = anchor_date or date.today()
+    days = [end_day - timedelta(days=i) for i in range(6, -1, -1)]  # oldest → newest
+
+    result = []
+    for day in days:
+        day_start = datetime.combine(day, time.min, tzinfo=timezone.utc)
+        day_end = datetime.combine(day + timedelta(days=1), time.min, tzinfo=timezone.utc)
+        meals = (
+            db.query(MealLog)
+            .filter(
+                MealLog.user_id == user_id,
+                MealLog.logged_at >= day_start,
+                MealLog.logged_at < day_end,
+                MealLog.confirmed == "true"
+            )
+            .all()
+        )
+        consumed = {
+            "calories": round(sum(item.calories or 0 for m in meals for item in m.items), 1),
+            "protein_g": round(sum(item.protein_g or 0 for m in meals for item in m.items), 1),
+            "carbs_g": round(sum(item.carbs_g or 0 for m in meals for item in m.items), 1),
+            "fat_g": round(sum(item.fat_g or 0 for m in meals for item in m.items), 1),
+        }
+        result.append({
+            "date": str(day),
+            "day_label": day.strftime("%a"),          # "Mon", "Tue", …
+            "day_short": day.strftime("%b %d"),       # "Oct 04"
+            "consumed": consumed,
+            "target": {
+                "calories": target["calories"],
+                "protein_g": target["protein_g"],
+                "carbs_g": target["carbs_g"],
+                "fat_g": target["fat_g"],
+            },
+            "has_data": any(v > 0 for v in consumed.values()),
+        })
+
+    totals_consumed = {
+        k: round(sum(d["consumed"][k] for d in result), 1)
+        for k in ("calories", "protein_g", "carbs_g", "fat_g")
+    }
+    avg_consumed = {k: round(v / 7, 1) for k, v in totals_consumed.items()}
+
+    return {
+        "week_start": str(days[0]),
+        "week_end": str(days[-1]),
+        "days": result,
+        "target": target,
+        "totals_consumed": totals_consumed,
+        "avg_consumed": avg_consumed,
+        "food_data_source": FOOD_DATA_SOURCE,
+    }
+
+
 
 @app.get(f"{API_PREFIX}/users/{{user_id}}/meal-suggestions")
 def meal_suggestions(user_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -630,6 +744,7 @@ def meal_suggestions(user_id: str, db: Session = Depends(get_db), current_user: 
         if diet_pref == "veg" and food["diet"] not in {"veg", "vegan"}: continue
         if diet_pref == "eggetarian" and food["diet"] not in {"veg", "vegan", "eggetarian"}: continue
         if profile and set(food["allergens"]).intersection(profile.allergies or []): continue
+        if profile and set(food.get("cautions", {})).intersection(profile.conditions or []): continue
         options.append({"food_label": food["label"], "display_name": food["display_name"], "serving_g": food["serving_g"], "reason": "Matches your diet preference and has no declared allergen conflict."})
     return options[:3]
 
@@ -677,7 +792,84 @@ def chat(
                 )
             )
 
+    # Build user profile context so the AI can answer "how is my profile" etc.
+    user_profile_ctx: dict = {"name": current_user.name}
+    from .db.models import FitnessGoal
+    goal_row = db.query(FitnessGoal).filter(FitnessGoal.user_id == payload.user_id).first()
+    if goal_row:
+        user_profile_ctx = {
+            "name": current_user.name,
+            "age": goal_row.age,
+            "sex": goal_row.sex,
+            "weight_kg": goal_row.weight_kg,
+            "height_cm": goal_row.height_cm,
+            "activity_level": goal_row.activity_level,
+            "goal": goal_row.goal,
+            "diet_preference": goal_row.diet_preference,
+        }
+    med = db.query(MedicalProfile).filter(MedicalProfile.user_id == payload.user_id).first()
+    if med:
+        user_profile_ctx["conditions"] = med.conditions or []
+        user_profile_ctx["allergies"] = med.allergies or []
+
+    # Provide Groq a bounded, server-built view of every user-facing section.
+    # The client never receives or sends the provider key or another user's data.
+    recent_meals = (
+        db.query(MealLog)
+        .filter(MealLog.user_id == payload.user_id, MealLog.confirmed == "true")
+        .order_by(MealLog.logged_at.desc())
+        .limit(20)
+        .all()
+    )
+    today_start = datetime.combine(date.today(), time.min, tzinfo=timezone.utc)
+    today_meals = [meal for meal in recent_meals if meal.logged_at and meal.logged_at >= today_start]
+    consumed = {
+        "calories": round(sum(item.calories or 0 for meal in today_meals for item in meal.items), 1),
+        "protein_g": round(sum(item.protein_g or 0 for meal in today_meals for item in meal.items), 1),
+        "carbs_g": round(sum(item.carbs_g or 0 for meal in today_meals for item in meal.items), 1),
+        "fat_g": round(sum(item.fat_g or 0 for meal in today_meals for item in meal.items), 1),
+    }
+    dashboard = {"date": str(date.today()), "consumed_today": consumed}
+    if goal_row:
+        from .fitness.calculator import targets
+        target = targets(goal_row.age, goal_row.sex, goal_row.height_cm, goal_row.weight_kg, goal_row.activity_level, goal_row.goal)
+        dashboard["target"] = {key: target[key] for key in ("calories", "protein_g", "carbs_g", "fat_g")}
+        dashboard["remaining"] = {
+            key: round(dashboard["target"][key] - consumed[key], 1)
+            for key in consumed
+        }
+
+    from .db.models import HealthMetric
+    health_metrics = (
+        db.query(HealthMetric)
+        .filter(HealthMetric.user_id == payload.user_id)
+        .order_by(HealthMetric.recorded_at.desc())
+        .limit(30)
+        .all()
+    )
+    app_data = {
+        "dashboard": dashboard,
+        "meal_history": [
+            {
+                "logged_at": meal.logged_at,
+                "meal_type": meal.meal_type,
+                "source": meal.source.value,
+                "items": [
+                    {"food": item.food_label, "grams": item.est_grams, "calories": item.calories, "protein_g": item.protein_g, "carbs_g": item.carbs_g, "fat_g": item.fat_g}
+                    for item in meal.items
+                ],
+            }
+            for meal in recent_meals
+        ],
+        "health_metrics": [
+            {"recorded_at": metric.recorded_at, "type": metric.metric_type.value, "value": metric.value, "unit": metric.unit}
+            for metric in health_metrics
+        ],
+    }
+
     try:
-        return answer_chat(payload, meal_items=meal_rows)
+        return answer_chat(payload, meal_items=meal_rows, user_profile=user_profile_ctx, app_data=app_data)
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chat service error: {str(e)}")

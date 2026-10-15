@@ -19,8 +19,18 @@ import {
   Activity,
   Sprout,
   ChevronRight,
-  ArrowRight
+  ChevronLeft,
+  ArrowRight,
+  FileDown
 } from 'lucide-react';
+import { generateWeeklyNutritionReport } from '../../utils/generateWeeklyNutritionReport';
+
+const todayKey = () => new Date().toISOString().slice(0, 10);
+const shiftDateKey = (dateKey, days) => {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day + days));
+  return date.toISOString().slice(0, 10);
+};
 
 // Circular Donut Gauge Component
 const DonutGauge = ({ percent, color, track = '#f3f4f6', size = 52, stroke = 5 }) => {
@@ -61,107 +71,156 @@ const DonutGauge = ({ percent, color, track = '#f3f4f6', size = 52, stroke = 5 }
 };
 
 export const TodaySummary = () => {
-  const { user, setActiveTab, setIsProfileModalOpen, showToast } = useApp();
+  const { user, setActiveTab, setIsProfileModalOpen, showToast, profileRefreshTrigger } = useApp();
   const [summary, setSummary] = useState(null);
+  const [suggestions, setSuggestions] = useState([]);
+  const [goals, setGoals] = useState(null);
+  const [weeklyData, setWeeklyData] = useState(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [metricTab, setMetricTab] = useState('calories');
-  const [waterMl, setWaterMl] = useState(1200);
+  const [waterMl, setWaterMl] = useState(0);
+  const [weekAnchorDate, setWeekAnchorDate] = useState(todayKey);
+  const isCurrentWeek = weekAnchorDate >= todayKey();
 
-  // Fetch fitness summary if available, otherwise use defaults
+  // Re-fetch after a profile save: targets must never remain generic for the
+  // currently signed-in user.
   useEffect(() => {
     if (user?.id) {
       api.fitness.summary(user.id)
         .then(data => { if (data) setSummary(data); })
         .catch(() => {});
+      api.fitness.suggestions(user.id).then(setSuggestions).catch(() => setSuggestions([]));
+      api.fitness.goals(user.id).then(setGoals).catch(() => setGoals(null));
+      api.fitness.weekly(user.id, weekAnchorDate).then(data => { if (data) setWeeklyData(data); }).catch(() => {});
     }
-  }, [user?.id]);
+  }, [user?.id, user?.age, user?.height, user?.weight, user?.activity_level, user?.health_goal, user?.diet_preference, profileRefreshTrigger, weekAnchorDate]);
 
   // Dynamic greeting based on time of day
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-  const firstName = user?.name ? user.name.split(' ')[0] : 'Yash';
+  const firstName = user?.name ? user.name.split(' ')[0] : 'there';
 
   // Macro stats (prefer user/api data if present, fall back to default goals)
-  const caloriesConsumed = summary?.consumed?.calories ?? 820;
-  const caloriesTarget = summary?.target?.calories ?? 2500;
+  const caloriesConsumed = summary?.consumed?.calories ?? 0;
+  const caloriesTarget = summary?.target?.calories ?? 0;
   const caloriesRemaining = Math.max(0, caloriesTarget - caloriesConsumed);
-  const caloriesPercent = Math.round((caloriesConsumed / caloriesTarget) * 100);
+  const caloriesPercent = caloriesTarget ? Math.round((caloriesConsumed / caloriesTarget) * 100) : 0;
 
-  const proteinConsumed = summary?.consumed?.protein_g ?? 42;
-  const proteinTarget = summary?.target?.protein_g ?? 150;
+  const proteinConsumed = summary?.consumed?.protein_g ?? 0;
+  const proteinTarget = summary?.target?.protein_g ?? 0;
   const proteinRemaining = Math.max(0, proteinTarget - proteinConsumed);
-  const proteinPercent = Math.round((proteinConsumed / proteinTarget) * 100);
+  const proteinPercent = proteinTarget ? Math.round((proteinConsumed / proteinTarget) * 100) : 0;
 
-  const carbsConsumed = summary?.consumed?.carbs_g ?? 110;
-  const carbsTarget = summary?.target?.carbs_g ?? 350;
+  const carbsConsumed = summary?.consumed?.carbs_g ?? 0;
+  const carbsTarget = summary?.target?.carbs_g ?? 0;
   const carbsRemaining = Math.max(0, carbsTarget - carbsConsumed);
-  const carbsPercent = Math.round((carbsConsumed / carbsTarget) * 100);
+  const carbsPercent = carbsTarget ? Math.round((carbsConsumed / carbsTarget) * 100) : 0;
 
-  const fatConsumed = summary?.consumed?.fat_g ?? 28;
-  const fatTarget = summary?.target?.fat_g ?? 70;
+  const fatConsumed = summary?.consumed?.fat_g ?? 0;
+  const fatTarget = summary?.target?.fat_g ?? 0;
   const fatRemaining = Math.max(0, fatTarget - fatConsumed);
-  const fatPercent = Math.round((fatConsumed / fatTarget) * 100);
+  const fatPercent = fatTarget ? Math.round((fatConsumed / fatTarget) * 100) : 0;
 
-  // 7-day trend dataset
+  // Dynamic 7-day trend dataset powered by weekly summary API
+  const targetCalories = weeklyData?.target?.calories || caloriesTarget || 0;
+  const targetProtein = weeklyData?.target?.protein_g || proteinTarget || 0;
+  const targetCarbs = weeklyData?.target?.carbs_g || carbsTarget || 0;
+  const targetFat = weeklyData?.target?.fat_g || fatTarget || 0;
+
+  const daysList = (weeklyData?.days && weeklyData.days.length > 0)
+    ? weeklyData.days
+    : Array.from({ length: 7 }, (_, i) => {
+        const d = new Date();
+        d.setDate(d.getDate() - (6 - i));
+        return {
+          day_label: d.toLocaleDateString('en-US', { weekday: 'short' }),
+          day_short: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          date: d.toISOString().slice(0, 10),
+          consumed: { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 },
+          target: { calories: targetCalories, protein_g: targetProtein, carbs_g: targetCarbs, fat_g: targetFat },
+          has_data: false,
+        };
+      });
+
   const weeklyTrends = {
     calories: {
-      max: 3000,
-      target: 2500,
+      max: Math.max(2500, targetCalories * 1.25, ...daysList.map(d => (d.consumed?.calories || 0) * 1.15)),
+      target: targetCalories,
       unit: 'kcal',
-      days: [
-        { day: 'Sat', date: 'Oct 4', consumed: 1650 },
-        { day: 'Sun', date: 'Oct 5', consumed: 1820 },
-        { day: 'Mon', date: 'Oct 6', consumed: 1720 },
-        { day: 'Tue', date: 'Oct 7', consumed: 1950 },
-        { day: 'Wed', date: 'Oct 8', consumed: 1540 },
-        { day: 'Thu', date: 'Oct 9', consumed: 2100 },
-        { day: 'Fri', date: 'Oct 10', consumed: 2280 },
-      ]
+      avg: weeklyData?.avg_consumed?.calories ?? Math.round(daysList.reduce((s, d) => s + (d.consumed?.calories || 0), 0) / 7),
+      total: weeklyData?.totals_consumed?.calories ?? Math.round(daysList.reduce((s, d) => s + (d.consumed?.calories || 0), 0)),
+      days: daysList.map(d => ({
+        day: d.day_label,
+        date: d.day_short,
+        consumed: d.consumed?.calories ?? 0,
+        target: d.target?.calories ?? targetCalories,
+      }))
     },
     protein: {
-      max: 180,
-      target: 150,
+      max: Math.max(150, targetProtein * 1.25, ...daysList.map(d => (d.consumed?.protein_g || 0) * 1.2)),
+      target: targetProtein,
       unit: 'g',
-      days: [
-        { day: 'Sat', date: 'Oct 4', consumed: 110 },
-        { day: 'Sun', date: 'Oct 5', consumed: 125 },
-        { day: 'Mon', date: 'Oct 6', consumed: 95 },
-        { day: 'Tue', date: 'Oct 7', consumed: 130 },
-        { day: 'Wed', date: 'Oct 8', consumed: 105 },
-        { day: 'Thu', date: 'Oct 9', consumed: 140 },
-        { day: 'Fri', date: 'Oct 10', consumed: 145 },
-      ]
+      avg: weeklyData?.avg_consumed?.protein_g ?? Math.round(daysList.reduce((s, d) => s + (d.consumed?.protein_g || 0), 0) / 7),
+      total: weeklyData?.totals_consumed?.protein_g ?? Math.round(daysList.reduce((s, d) => s + (d.consumed?.protein_g || 0), 0)),
+      days: daysList.map(d => ({
+        day: d.day_label,
+        date: d.day_short,
+        consumed: d.consumed?.protein_g ?? 0,
+        target: d.target?.protein_g ?? targetProtein,
+      }))
     },
     carbs: {
-      max: 400,
-      target: 350,
+      max: Math.max(300, targetCarbs * 1.25, ...daysList.map(d => (d.consumed?.carbs_g || 0) * 1.2)),
+      target: targetCarbs,
       unit: 'g',
-      days: [
-        { day: 'Sat', date: 'Oct 4', consumed: 230 },
-        { day: 'Sun', date: 'Oct 5', consumed: 280 },
-        { day: 'Mon', date: 'Oct 6', consumed: 250 },
-        { day: 'Tue', date: 'Oct 7', consumed: 310 },
-        { day: 'Wed', date: 'Oct 8', consumed: 220 },
-        { day: 'Thu', date: 'Oct 9', consumed: 320 },
-        { day: 'Fri', date: 'Oct 10', consumed: 335 },
-      ]
+      avg: weeklyData?.avg_consumed?.carbs_g ?? Math.round(daysList.reduce((s, d) => s + (d.consumed?.carbs_g || 0), 0) / 7),
+      total: weeklyData?.totals_consumed?.carbs_g ?? Math.round(daysList.reduce((s, d) => s + (d.consumed?.carbs_g || 0), 0)),
+      days: daysList.map(d => ({
+        day: d.day_label,
+        date: d.day_short,
+        consumed: d.consumed?.carbs_g ?? 0,
+        target: d.target?.carbs_g ?? targetCarbs,
+      }))
     },
     fat: {
-      max: 90,
-      target: 70,
+      max: Math.max(80, targetFat * 1.25, ...daysList.map(d => (d.consumed?.fat_g || 0) * 1.2)),
+      target: targetFat,
       unit: 'g',
-      days: [
-        { day: 'Sat', date: 'Oct 4', consumed: 52 },
-        { day: 'Sun', date: 'Oct 5', consumed: 60 },
-        { day: 'Mon', date: 'Oct 6', consumed: 48 },
-        { day: 'Tue', date: 'Oct 7', consumed: 62 },
-        { day: 'Wed', date: 'Oct 8', consumed: 45 },
-        { day: 'Thu', date: 'Oct 9', consumed: 65 },
-        { day: 'Fri', date: 'Oct 10', consumed: 68 },
-      ]
+      avg: weeklyData?.avg_consumed?.fat_g ?? Math.round(daysList.reduce((s, d) => s + (d.consumed?.fat_g || 0), 0) / 7),
+      total: weeklyData?.totals_consumed?.fat_g ?? Math.round(daysList.reduce((s, d) => s + (d.consumed?.fat_g || 0), 0)),
+      days: daysList.map(d => ({
+        day: d.day_label,
+        date: d.day_short,
+        consumed: d.consumed?.fat_g ?? 0,
+        target: d.target?.fat_g ?? targetFat,
+      }))
     }
   };
 
   const activeTrend = weeklyTrends[metricTab];
+
+  const handleDownloadWeeklyReport = () => {
+    try {
+      setIsGeneratingPdf(true);
+      if (showToast) showToast('Preparing your Weekly Nutrition Report PDF...', 'info');
+      generateWeeklyNutritionReport({
+        user,
+        weeklyData: weeklyData || {
+          week_start: daysList[0]?.date,
+          week_end: daysList[daysList.length - 1]?.date,
+          days: daysList,
+          target: { calories: targetCalories, protein_g: targetProtein, carbs_g: targetCarbs, fat_g: targetFat }
+        },
+        goals,
+        summary
+      });
+      setTimeout(() => setIsGeneratingPdf(false), 1000);
+    } catch (err) {
+      console.error('PDF report error:', err);
+      setIsGeneratingPdf(false);
+      if (showToast) showToast('Failed to generate report PDF', 'error');
+    }
+  };
 
   const addWater = (amount) => {
     setWaterMl(prev => {
@@ -225,6 +284,7 @@ export const TodaySummary = () => {
           </div>
           <ChevronRight size={18} style={{ color: '#9ca3af' }} />
         </div>
+
       </div>
 
       {/* ── ROW 2: Today's Nutrition ── */}
@@ -236,7 +296,24 @@ export const TodaySummary = () => {
             </span>
             <span>Today's Nutrition</span>
           </h3>
-          <span className="dash-section-sub">Targets from your profile</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {summary?.target?.age_group_label && (
+              <span style={{
+                fontSize: '0.74rem',
+                fontWeight: 700,
+                background: summary.target.is_minor ? '#ecfdf5' : '#eff6ff',
+                color: summary.target.is_minor ? '#065f46' : '#1e40af',
+                padding: '2px 8px',
+                borderRadius: 6,
+                border: summary.target.is_minor ? '1px solid #a7f3d0' : '1px solid #bfdbfe'
+              }}>
+                {summary.target.age_group_label}
+              </span>
+            )}
+            <span className="dash-section-sub">
+              {summary?.target?.age_group_label ? `Targets tailored for ${summary.target.age_group_label}` : 'Targets from your profile'}
+            </span>
+          </div>
         </div>
 
         <div className="dash-macro-grid">
@@ -329,6 +406,8 @@ export const TodaySummary = () => {
           </div>
         </div>
       </div>
+
+
 
       {/* ── ROW 3: Middle Grid (Meals, Weekly Trend, Quick Actions) ── */}
       <div className="dash-middle-grid">
@@ -463,19 +542,68 @@ export const TodaySummary = () => {
 
         {/* 2. Weekly Nutrition Trend */}
         <div className="dash-panel">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
             <h4 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8, fontSize: '1.05rem', fontWeight: 700 }}>
               <TrendingUp size={18} style={{ color: '#16a34a' }} />
               <span>Weekly Nutrition Trend</span>
             </h4>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: '#6b7280' }}>
-              <Calendar size={13} />
-              <span>4 Oct – 10 Oct 2026</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <button
+                  onClick={() => setWeekAnchorDate(date => shiftDateKey(date, -7))}
+                  aria-label="Show previous week"
+                  title="Previous week"
+                  style={{ width: 28, height: 28, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 7, border: '1px solid #d1d5db', background: '#fff', color: '#374151', cursor: 'pointer' }}
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <button
+                  onClick={() => setWeekAnchorDate(date => shiftDateKey(date, 7))}
+                  disabled={isCurrentWeek}
+                  aria-label="Show next week"
+                  title={isCurrentWeek ? 'You are viewing the current week' : 'Next week'}
+                  style={{ width: 28, height: 28, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 7, border: '1px solid #d1d5db', background: isCurrentWeek ? '#f3f4f6' : '#fff', color: isCurrentWeek ? '#9ca3af' : '#374151', cursor: isCurrentWeek ? 'not-allowed' : 'pointer' }}
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: '#6b7280' }}>
+                <Calendar size={13} />
+                <span>
+                  {weeklyData?.week_start && weeklyData?.week_end
+                    ? `${weeklyData.week_start} to ${weeklyData.week_end}`
+                    : `${daysList[0]?.date || 'Recent'} to ${daysList[daysList.length - 1]?.date || 'Today'}`}
+                </span>
+                {isCurrentWeek && <span style={{ color: '#059669', fontWeight: 700 }}>Current week</span>}
+              </div>
+              <button
+                onClick={handleDownloadWeeklyReport}
+                disabled={isGeneratingPdf}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '6px 12px',
+                  background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+                  color: '#ffffff',
+                  borderRadius: 8,
+                  border: 'none',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  cursor: isGeneratingPdf ? 'wait' : 'pointer',
+                  boxShadow: '0 2px 6px rgba(16, 185, 129, 0.25)',
+                  transition: 'all 0.15s ease'
+                }}
+                title="Download comprehensive weekly assessment report with required protein, carbs, fat targets vs consumed intake"
+              >
+                <FileDown size={14} />
+                <span>{isGeneratingPdf ? 'Generating...' : 'Download Weekly PDF'}</span>
+              </button>
             </div>
           </div>
 
           {/* Metric Selector Pills */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
             {[
               { id: 'calories', label: 'Calories' },
               { id: 'protein', label: 'Protein' },
@@ -502,13 +630,54 @@ export const TodaySummary = () => {
             ))}
           </div>
 
+          {/* Consumed vs Target Summary Banner */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: metricTab === 'protein' ? '#f0fdf4' : '#fafafa',
+            border: metricTab === 'protein' ? '1px solid #bbf7d0' : '1px solid #f4f4f5',
+            borderRadius: 8,
+            padding: '8px 12px',
+            marginBottom: 16,
+            fontSize: '0.8rem'
+          }}>
+            <div>
+              <span style={{ fontSize: '0.7rem', color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.4px', display: 'block' }}>
+                Daily Target
+              </span>
+              <strong style={{ color: '#047857', fontSize: '0.92rem' }}>
+                {activeTrend.target} {activeTrend.unit}/day
+              </strong>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <span style={{ fontSize: '0.7rem', color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.4px', display: 'block' }}>
+                Daily Avg Consumed
+              </span>
+              <strong style={{ color: '#18181b', fontSize: '0.92rem' }}>
+                {activeTrend.avg} {activeTrend.unit}
+                <span style={{ fontSize: '0.74rem', marginLeft: 4, color: activeTrend.avg >= activeTrend.target * 0.9 ? '#16a34a' : '#d97706', fontWeight: 600 }}>
+                  ({activeTrend.target ? Math.round((activeTrend.avg / activeTrend.target) * 100) : 0}%)
+                </span>
+              </strong>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <span style={{ fontSize: '0.7rem', color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.4px', display: 'block' }}>
+                7-Day Total
+              </span>
+              <strong style={{ color: '#18181b', fontSize: '0.92rem' }}>
+                {activeTrend.total} {activeTrend.unit}
+              </strong>
+            </div>
+          </div>
+
           {/* Bar Chart Area */}
           <div style={{ display: 'flex', flex: 1, minHeight: 180, position: 'relative' }}>
             {/* Y-axis markers */}
-            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', paddingRight: 10, fontSize: '0.68rem', color: '#9ca3af', textAlign: 'right', minWidth: 24, paddingBottom: 28 }}>
-              <span>{metricTab === 'calories' ? '3k' : metricTab === 'carbs' ? '400' : metricTab === 'protein' ? '180' : '90'}</span>
-              <span>{metricTab === 'calories' ? '2k' : metricTab === 'carbs' ? '250' : metricTab === 'protein' ? '120' : '60'}</span>
-              <span>{metricTab === 'calories' ? '1k' : metricTab === 'carbs' ? '120' : metricTab === 'protein' ? '60' : '30'}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', paddingRight: 10, fontSize: '0.68rem', color: '#9ca3af', textAlign: 'right', minWidth: 28, paddingBottom: 28 }}>
+              <span>{Math.round(activeTrend.max)}</span>
+              <span>{Math.round(activeTrend.max * 0.66)}</span>
+              <span>{Math.round(activeTrend.max * 0.33)}</span>
               <span>0</span>
             </div>
 
@@ -517,15 +686,16 @@ export const TodaySummary = () => {
               {activeTrend.days.map((item, idx) => {
                 const consumedHeight = Math.min(100, Math.round((item.consumed / activeTrend.max) * 100));
                 const targetHeight = Math.min(100, Math.round((activeTrend.target / activeTrend.max) * 100));
+                const dayPct = activeTrend.target ? Math.round((item.consumed / activeTrend.target) * 100) : 0;
 
                 return (
                   <div key={idx} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', position: 'relative' }}>
                     {/* Bar track and fill */}
                     <div
-                      title={`${item.day} ${item.date}: ${item.consumed} / ${activeTrend.target} ${activeTrend.unit}`}
+                      title={`${item.day} (${item.date}): Consumed ${item.consumed}${activeTrend.unit} / Target ${activeTrend.target}${activeTrend.unit} (${dayPct}%)`}
                       style={{
                         position: 'relative',
-                        width: '16px',
+                        width: '18px',
                         height: '100%',
                         display: 'flex',
                         alignItems: 'flex-end',
@@ -550,7 +720,7 @@ export const TodaySummary = () => {
                         zIndex: 2,
                         width: '100%',
                         height: `${consumedHeight}%`,
-                        background: '#10b981',
+                        background: item.consumed >= activeTrend.target * 0.9 ? '#10b981' : '#34d399',
                         borderRadius: 8,
                         transition: 'height 0.5s ease'
                       }} />
@@ -710,7 +880,7 @@ export const TodaySummary = () => {
         </div>
 
         <div className="dash-health-bottom">
-          {/* 4 Health Stats */}
+          {/* 4 Health Stats — live from API */}
           <div className="dash-panel" style={{ padding: '20px 24px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
             {/* Weight */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -719,7 +889,9 @@ export const TodaySummary = () => {
               </div>
               <div>
                 <div style={{ fontSize: '0.72rem', color: '#6b7280' }}>Weight</div>
-                <div style={{ fontSize: '1rem', fontWeight: 800, color: '#18181b' }}>55 kg</div>
+                <div style={{ fontSize: '1rem', fontWeight: 800, color: '#18181b' }}>
+                  {goals?.weight_kg ? `${goals.weight_kg} kg` : (user?.weight ? `${user.weight} kg` : '—')}
+                </div>
                 <div style={{ fontSize: '0.68rem', color: '#9ca3af' }}>(from profile)</div>
               </div>
             </div>
@@ -731,7 +903,9 @@ export const TodaySummary = () => {
               </div>
               <div>
                 <div style={{ fontSize: '0.72rem', color: '#6b7280' }}>Height</div>
-                <div style={{ fontSize: '0.96rem', fontWeight: 800, color: '#18181b' }}>5'6" (168 cm)</div>
+                <div style={{ fontSize: '0.96rem', fontWeight: 800, color: '#18181b' }}>
+                  {goals?.height_cm ? `${goals.height_cm} cm` : (user?.height ? `${user.height} cm` : '—')}
+                </div>
                 <div style={{ fontSize: '0.68rem', color: '#9ca3af' }}>(from profile)</div>
               </div>
             </div>
@@ -743,7 +917,11 @@ export const TodaySummary = () => {
               </div>
               <div>
                 <div style={{ fontSize: '0.72rem', color: '#6b7280' }}>Activity Level</div>
-                <div style={{ fontSize: '1rem', fontWeight: 800, color: '#18181b' }}>Moderate</div>
+                <div style={{ fontSize: '1rem', fontWeight: 800, color: '#18181b', textTransform: 'capitalize' }}>
+                  {goals?.activity_level
+                    ? goals.activity_level.replace('_', ' ')
+                    : (user?.activity_level ? user.activity_level.replace('_', ' ') : '—')}
+                </div>
                 <div style={{ fontSize: '0.68rem', color: '#9ca3af' }}>(from profile)</div>
               </div>
             </div>
@@ -755,7 +933,11 @@ export const TodaySummary = () => {
               </div>
               <div>
                 <div style={{ fontSize: '0.72rem', color: '#6b7280' }}>Goal</div>
-                <div style={{ fontSize: '0.96rem', fontWeight: 800, color: '#18181b' }}>Maintain Weight</div>
+                <div style={{ fontSize: '0.96rem', fontWeight: 800, color: '#18181b', textTransform: 'capitalize' }}>
+                  {goals?.goal
+                    ? { gain: 'Weight Gain', maintain: 'Maintain Weight', lose: 'Weight Loss', fitness: 'General Fitness', general_fitness: 'General Fitness' }[goals.goal] || goals.goal
+                    : (user?.health_goal ? user.health_goal : '—')}
+                </div>
                 <div style={{ fontSize: '0.68rem', color: '#9ca3af' }}>(from profile)</div>
               </div>
             </div>

@@ -2,6 +2,7 @@ fastapi
 uvicorn[standard]
 sqlalchemy
 psycopg2-binary
+psycopg[binary]
 pydantic
 email-validator
 python-multipart
@@ -28,7 +29,6 @@ openai-whisper
 # rag
 chromadb
 sentence-transformers
-anthropic          # or swap for your LLM provider's SDK in app/rag/chat.py
 
 # dev
 alembic

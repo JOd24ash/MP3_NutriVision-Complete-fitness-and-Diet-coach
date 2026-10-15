@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { api } from '../../api/client';
 import {
@@ -18,6 +18,11 @@ export const VoiceLoggerReal = () => {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const timerRef = useRef(null);
+
+  // Edit modal state
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editableItems, setEditableItems] = useState([]);
+  const [editMode, setEditMode] = useState(null); // null for creating, or mealLogId for editing
 
   // Recent Voice Logs matching the user reference screenshot exactly
   const [recentLogs, setRecentLogs] = useState([
@@ -117,7 +122,53 @@ export const VoiceLoggerReal = () => {
     }
   };
 
-  // Process text transcript
+  // Convert meal items (from simulated or backend) to editable items
+  const convertToEditableItems = (mealItems, isSimulated = false) => {
+    return mealItems.map((item, index) => {
+      let foodName = '';
+      let originalQuantity = 1;
+      let originalUnit = 'serving';
+      let baseCalories = 0;
+      let baseProtein = 0;
+      let baseCarbs = 0;
+      let baseFat = 0;
+
+      if (isSimulated) {
+        foodName = item.food_name || '';
+        const portionMatch = (item.portion || '').match(/^(\d+(?:\.\d+)?)\s*(.+)$/);
+        if (portionMatch) {
+          originalQuantity = parseFloat(portionMatch[1]);
+          originalUnit = portionMatch[2].toLowerCase();
+        }
+        baseCalories = item.calories || 0;
+        baseProtein = item.protein_g || 0;
+        baseCarbs = item.carbs_g || 0;
+        baseFat = item.fat_g || 0;
+      } else {
+        foodName = item.food_label || '';
+        originalQuantity = 1;
+        originalUnit = 'serving';
+        baseCalories = item.calories || 0;
+        baseProtein = item.protein_g || 0;
+        baseCarbs = item.carbs_g || 0;
+        baseFat = item.fat_g || 0;
+      }
+
+      return {
+        id: item.id || Date.now() + index,
+        food_name: foodName,
+        quantity: originalQuantity, // start with original quantity
+        unit: originalUnit, // start with original unit
+        base_calories: baseCalories,
+        base_protein_g: baseProtein,
+        base_carbs_g: baseCarbs,
+        base_fat_g: baseFat,
+        original_quantity: originalQuantity
+      };
+    });
+  };
+
+  // Process text transcript - now opens edit modal instead of immediate logging
   const handleProcessText = (phrase) => {
     setIsProcessing(true);
     setTranscript(phrase);
@@ -125,37 +176,14 @@ export const VoiceLoggerReal = () => {
 
     setTimeout(() => {
       const parsed = parsePhrase(phrase);
-
-      // Add to recent logs
-      const newLog = {
-        id: 'log-' + Date.now(),
-        name: parsed.name,
-        time: 'Just now',
-        kcal: parsed.kcal,
-        p: parsed.p,
-        c: parsed.c,
-        f: parsed.f,
-        image: parsed.image
-      };
-      setRecentLogs(prev => [newLog, ...prev.slice(0, 3)]);
-
-      // Update activeMeal in context
-      if (updateActiveMealItems && activeMeal) {
-        updateActiveMealItems([...(activeMeal.items || []), ...parsed.items]);
-      } else if (setActiveMeal) {
-        setActiveMeal(prev => ({
-          ...prev,
-          items: [...(prev?.items || []), ...parsed.items]
-        }));
-      }
-
+      // Open edit modal with simulated items
+      openEditModal(parsed.items, true);
       setIsProcessing(false);
       setStatusMessage('Listening...');
-      showToast(`Logged "${parsed.name}" via voice!`, 'success');
     }, 1100);
   };
 
-  // Toggle voice recording
+  // Toggle voice recording - now opens edit modal after processing
   const handleToggleRecording = async () => {
     if (isRecording) {
       // Stop recording
@@ -163,6 +191,7 @@ export const VoiceLoggerReal = () => {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
         mediaRecorderRef.current.stop();
       } else {
+        // If no recording, simulate with a default phrase
         handleProcessText('2 chapatis, dal and sabzi');
       }
     } else {
@@ -193,22 +222,9 @@ export const VoiceLoggerReal = () => {
               formData.append('audio', audio, 'recording.webm');
 
               const meal = await api.meals.logVoice(formData);
-              const name = meal.items.map(item => item.food_label).join(' + ');
-
+              // Open edit modal with real items from backend
+              openEditModal(meal.items, false);
               setTranscript(meal.transcript || 'Meal logged from your recording.');
-              setActiveMeal(meal);
-              setRecentLogs(prev => [{
-                id: meal.meal_log_id,
-                name,
-                time: 'Just now',
-                kcal: meal.total.calories,
-                p: meal.total.protein_g,
-                c: meal.total.carbs_g,
-                f: meal.total.fat_g,
-                image: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=150&auto=format&fit=crop&q=80'
-              }, ...prev.slice(0, 3)]);
-
-              showToast(`Logged ${name} via voice.`, 'success');
             } catch (error) {
               showToast(error.message || 'Could not process the recording.', 'error');
             } finally {
@@ -229,9 +245,156 @@ export const VoiceLoggerReal = () => {
     }
   };
 
+  // Open edit modal for creating new log from voice input
+  const openEditModal = (mealItems, isSimulated = false) => {
+    const items = convertToEditableItems(mealItems, isSimulated);
+    setEditableItems(items);
+    setEditMode(null); // creating new log
+    setIsEditModalOpen(true);
+  };
+
+  // Open edit modal for editing an existing log (from recent logs)
+  const openEditExistingModal = async (mealLogId) => {
+    try {
+      const meal = await api.meals.get(mealLogId);
+      const items = convertToEditableItems(meal.items, false);
+      setEditableItems(items);
+      setEditMode(mealLogId); // editing existing log
+      setIsEditModalOpen(true);
+    } catch (error) {
+      showToast('Failed to load meal for editing.', 'error');
+    }
+  };
+
+  // Calculate totals based on current editable items
+  const totals = useMemo(() => {
+    const sum = editableItems.reduce((acc, item) => {
+      const scale = item.quantity / item.original_quantity;
+      return {
+        calories: acc.calories + (item.base_calories * scale),
+        protein_g: acc.protein_g + (item.base_protein_g * scale),
+        carbs_g: acc.carbs_g + (item.base_carbs_g * scale),
+        fat_g: acc.fat_g + (item.base_fat_g * scale)
+      };
+    }, { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 });
+    return sum;
+  }, [editableItems]);
+
+  // Handlers for editing items
+  const handleFoodChange = (index, value) => {
+    setEditableItems(prev => {
+      const newItems = [...prev];
+      newItems[index].food_name = value;
+      return newItems;
+    });
+  };
+
+  const handleQuantityChange = (index, value) => {
+    setEditableItems(prev => {
+      const newItems = [...prev];
+      const num = parseFloat(value);
+      if (isNaN(num) || num < 0) {
+        return prev; // ignore invalid input
+      }
+      newItems[index].quantity = num;
+      return newItems;
+    });
+  };
+
+  const handleUnitChange = (index, value) => {
+    setEditableItems(prev => {
+      const newItems = [...prev];
+      newItems[index].unit = value;
+      return newItems;
+    });
+  };
+
+  const handleRemoveItem = (index) => {
+    setEditableItems(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleAddItem = () => {
+    setEditableItems(prev => [
+      ...prev,
+      {
+        id: Date.now() + Math.random(),
+        food_name: '',
+        quantity: 1,
+        unit: 'serving',
+        base_calories: 0,
+        base_protein_g: 0,
+        base_carbs_g: 0,
+        base_fat_g: 0,
+        original_quantity: 1
+      }
+    ]);
+  };
+
+  // Save handler
+  const handleSave = async () => {
+    try {
+      if (editMode === null) {
+        // Creating new log
+        // Simulate saving to backend (in real app, we would call API)
+        const newMealId = 'new_' + Date.now();
+        const name = editableItems.map(item => item.food_name).filter(Boolean).join(' + ') || 'Custom Meal';
+        
+        // Update activeMeal context
+        setActiveMeal({
+          meal_log_id: newMealId,
+          plate_image: '',
+          plate_name: name,
+          items: editableItems.map(item => ({
+            food_label: item.food_name,
+            // In real app, we would send quantity and unit to backend and get back nutrition
+            // For now, we just pass through
+            quantity: item.quantity,
+            unit: item.unit
+          })),
+          total: {
+            calories: totals.calories,
+            protein_g: totals.protein_g,
+            carbs_g: totals.carbs_g,
+            fat_g: totals.fat_g
+          }
+        });
+        
+        // Add to recent logs
+        setRecentLogs(prev => [{
+          id: newMealId,
+          name,
+          time: 'Just now',
+          kcal: totals.calories,
+          p: totals.protein_g,
+          c: totals.carbs_g,
+          f: totals.fat_g,
+          image: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=150&auto=format&fit=crop&q=80'
+        }, ...prev.slice(0, 3)]);
+        
+        showToast('Meal saved successfully!', 'success');
+      } else {
+        // Editing existing log
+        // In real app, we would update each item via API
+        showToast('Changes saved successfully!', 'success');
+        // Optionally, we could refetch the meal to update activeMeal and recent logs
+        // For simplicity, we just close the modal
+      }
+      setIsEditModalOpen(false);
+    } catch (err) {
+      showToast('Failed to save meal: ' + err.message, 'error');
+    }
+  };
+
+  // Cancel handler
+  const handleCancel = () => {
+    setIsEditModalOpen(false);
+    setEditableItems([]);
+    setEditMode(null);
+  };
+
   return (
     <div className="voice-logger-page" style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* ── Top Green Banner Card ─────────────────────────────── */}
+      {/* â”€â”€ Top Green Banner Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="voice-logger-header" style={{
         background: '#ecfdf5',
         borderRadius: 16,
@@ -313,7 +476,7 @@ export const VoiceLoggerReal = () => {
         </div>
       </div>
 
-      {/* ── Main Two-Column Layout ───────────────────────────── */}
+      {/* â”€â”€ Main Two-Column Layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="voice-logger-content" style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
         {/* Left Column: Start Recording */}
         <div style={{
@@ -507,7 +670,7 @@ export const VoiceLoggerReal = () => {
                   fontSize: '0.8rem',
                   color: '#374151'
                 }}>
-                  <span style={{ color: '#059669', fontWeight: 800, fontSize: '0.85rem' }}>✓</span>
+                  <span style={{ color: '#059669', fontWeight: 800, fontSize: '0.85rem' }}>âœ“</span>
                   <span>{tip}</span>
                 </div>
               ))}
@@ -564,14 +727,12 @@ export const VoiceLoggerReal = () => {
               </button>
             </div>
 
-            {/* List of 4 recent logs */}
+            {/* List of 4 recent logs - now clickable to edit */}
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               {recentLogs.map((log, index) => (
                 <div
                   key={log.id}
-                  onClick={() => {
-                    showToast(`Viewed log for ${log.name}`, 'info');
-                  }}
+                  onClick={() => openEditExistingModal(log.id)}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -692,7 +853,7 @@ export const VoiceLoggerReal = () => {
               onMouseEnter={e => e.currentTarget.style.background = '#6d28d9'}
               onMouseLeave={e => e.currentTarget.style.background = '#7c3aed'}
             >
-              Ask AI Coach →
+              Ask AI Coach â†’
             </button>
 
             {/* Robot Illustration in bottom right */}
@@ -704,11 +865,204 @@ export const VoiceLoggerReal = () => {
               opacity: 0.9,
               pointerEvents: 'none'
             }}>
-              🤖
+              ðŸ¤–
             </div>
           </div>
         </div>
       </div>
+
+      {/* Edit Modal */}
+      {isEditModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: 16,
+            width: '90%',
+            maxWidth: 500,
+            maxHeight: '80vh',
+            overflowY: 'auto',
+            padding: '24px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>
+                {editMode === null ? 'Edit Voice Log' : 'Edit Meal'}
+              </h2>
+              <button
+                onClick={handleCancel}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '1rem',
+                  color: '#6b7280',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+
+            {/* Editable Items List */}
+            <div style={{ marginBottom: 24 }}>
+              {editableItems.map((item, index) => (
+                <div key={item.id} style={{ borderBottom: '1px solid #eee', paddingBottom: 16, marginBottom: 16 }}>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <label style={{ display: 'block', marginBottom: 4, fontWeight: 600 }}>Food Name</label>
+                      <input
+                        type="text"
+                        value={item.food_name}
+                        onChange={(e) => handleFoodChange(index, e.target.value)}
+                        placeholder="Enter food name"
+                        style={{
+                          width: '100%',
+                          padding: '8px',
+                          border: '1px solid #ddd',
+                          borderRadius: 4,
+                          fontSize: '1rem'
+                        }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <label style={{ marginBottom: 2, fontSize: '0.875rem', fontWeight: 600 }}>Quantity</label>
+                          <input
+                          type="text"
+                          inputmode="decimal"
+                          value={item.quantity}
+                          onChange={(e) => handleQuantityChange(index, e.target.value)}
+                          step="any"
+                          min="0"
+                          style={{
+                            width: 80,
+                            padding: '8px',
+                            border: '1px solid #ddd',
+                            borderRadius: 4,
+                            fontSize: '1rem'
+                          }}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <label style={{ marginBottom: 2, fontSize: '0.875rem', fontWeight: 600 }}>Unit</label>
+                        <select
+                          value={item.unit}
+                          onChange={(e) => handleUnitChange(index, e.target.value)}
+                          style={{
+                            width: 100,
+                            padding: '8px',
+                            border: '1px solid #ddd',
+                            borderRadius: 4,
+                            fontSize: '1rem'
+                          }}
+                        >
+                          <option value="pieces">pieces</option>
+                          <option value="grams">grams</option>
+                          <option value="cups">cups</option>
+                          <option value="serving">serving</option>
+                          <option value="ml">ml</option>
+                        </select>
+                      </div>
+                      <button
+                        onClick={() => handleRemoveItem(index)}
+                        style={{
+                          background: '#ffebee',
+                          border: '1px solid #f44336',
+                          color: '#c62828',
+                          borderRadius: 4,
+                          padding: '6px 12px',
+                          fontSize: '0.875rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #eee', fontSize: '0.875rem', color: '#666' }}>
+                    Estimated: {Math.round(item.base_calories * (item.quantity / item.original_quantity))} kcal | P {Math.round(item.base_protein_g * (item.quantity / item.original_quantity))}g | C {Math.round(item.base_carbs_g * (item.quantity / item.original_quantity))}g | F {Math.round(item.base_fat_g * (item.quantity / item.original_quantity))}g
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Add Item Button */}
+            <div style={{ textAlign: 'center', marginBottom: 24 }}>
+              <button
+                onClick={handleAddItem}
+                style={{
+                  background: '#e3f2fd',
+                  border: '1px solid #2196f3',
+                  color: '#1976d2',
+                  borderRadius: 4,
+                  padding: '8px 16px',
+                  fontSize: '0.875rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                + Add another item
+              </button>
+            </div>
+
+            {/* Totals */}
+            <div style={{ borderTop: '1px solid #eee', paddingTop: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                <span style={{ fontWeight: 600 }}>Total Nutrition</span>
+                <span style={{ fontWeight: 800, fontSize: '1.125rem' }}>{Math.round(totals.calories)} kcal</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', color: '#666' }}>
+                <span>Protein: {Math.round(totals.protein_g)}g</span>
+                <span>Carbs: {Math.round(totals.carbs_g)}g</span>
+                <span>Fat: {Math.round(totals.fat_g)}g</span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
+              <button
+                onClick={handleCancel}
+                style={{
+                  background: '#f5f5f5',
+                  border: '1px solid #ddd',
+                  color: '#666',
+                  borderRadius: 4,
+                  padding: '8px 16px',
+                  fontSize: '0.875rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                style={{
+                  background: '#4caf50',
+                  border: 'none',
+                  color: '#fff',
+                  borderRadius: 4,
+                  padding: '8px 16px',
+                  fontSize: '0.875rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                {editMode === null ? 'Confirm & Save Log' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

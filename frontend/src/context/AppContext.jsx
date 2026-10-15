@@ -45,6 +45,9 @@ export const AppProvider = ({ children }) => {
     setToasts(prev => prev.filter(t => t.id !== id));
   };
 
+  const [profileRefreshTrigger, setProfileRefreshTrigger] = useState(0);
+  const notifyProfileUpdated = () => setProfileRefreshTrigger(prev => prev + 1);
+
   const updateUserProfile = async (updatedData) => {
     try {
       let saved = user;
@@ -59,6 +62,7 @@ export const AppProvider = ({ children }) => {
       if (user?.id) {
         localStorage.setItem('nutrivision_profile_saved_' + user.id, 'true');
       }
+      notifyProfileUpdated();
       return merged;
     } catch (err) {
       showToast('Failed to update profile: ' + err.message, 'danger');
@@ -118,7 +122,9 @@ export const AppProvider = ({ children }) => {
         isChatOpen,
         setIsChatOpen,
         isProfileModalOpen,
-        setIsProfileModalOpen
+        setIsProfileModalOpen,
+        profileRefreshTrigger,
+        notifyProfileUpdated
       }}
     >
       {children}
